@@ -341,9 +341,18 @@ function startGame() {
 
   const players = seatedClients();
   const deck = shuffle(createDeck());
+  const cardsPerPlayer = 13;
+  const totalCardsNeeded = players.length * cardsPerPlayer;
+
+  // Ensure 3S is always in dealt cards so opening rule remains valid.
+  const idx3S = deck.findIndex((c) => c.id === '3S');
+  if (idx3S >= totalCardsNeeded && totalCardsNeeded > 0) {
+    const swapIdx = totalCardsNeeded - 1;
+    [deck[idx3S], deck[swapIdx]] = [deck[swapIdx], deck[idx3S]];
+  }
 
   for (const c of allClients()) c.cards = [];
-  for (let i = 0; i < deck.length; i++) {
+  for (let i = 0; i < totalCardsNeeded; i++) {
     players[i % players.length].cards.push(deck[i]);
   }
 
@@ -408,12 +417,16 @@ function handleSit(client, data) {
     return sendTo(client.ws, { type: 'error', message: 'Please enter your name before joining the table.' });
   }
 
+  if (client.seat !== null) {
+    return sendTo(client.ws, { type: 'joined', seat: client.seat, name: client.name });
+  }
+
   const freeSeats = [...Array(MAX_PLAYERS).keys()].filter((s) => !getClientBySeat(s));
   if (freeSeats.length === 0) {
     return sendTo(client.ws, { type: 'error', message: 'No empty seat is available.' });
   }
 
-  const seat = client.seat !== null ? client.seat : freeSeats[0];
+  const seat = freeSeats[0];
 
   const prevSeat = client.seat;
   client.seat = seat;

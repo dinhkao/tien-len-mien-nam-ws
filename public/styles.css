@@ -494,6 +494,10 @@ button:disabled {
   margin-bottom: 8px;
 }
 
+.join-seat-bar.hidden {
+  display: none;
+}
+
 .join-seat-bar input {
   min-width: 180px;
   max-width: min(360px, 60vw);

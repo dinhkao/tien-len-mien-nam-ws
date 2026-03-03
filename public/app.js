@@ -33,6 +33,7 @@ const handEl = document.getElementById('hand');
 const gameEl = document.getElementById('game');
 const logEl = document.getElementById('log');
 const statusEl = document.getElementById('status');
+const joinSeatBarEl = document.querySelector('.join-seat-bar');
 const seatTopEl = document.getElementById('seat-top');
 const seatLeftEl = document.getElementById('seat-left');
 const seatRightEl = document.getElementById('seat-right');
@@ -48,6 +49,7 @@ const RANKS = ['3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A', '2']
 const RANK_VALUE = Object.fromEntries(RANKS.map((r, i) => [r, i + 3]));
 const SUIT_VALUE = { S: 1, C: 2, D: 3, H: 4 };
 const MOBILE_QUERY = '(max-width: 1024px) and (pointer: coarse)';
+const LS_NAME_KEY = 'tlmn_player_name';
 let audioCtx = null;
 let audioUnlocked = false;
 let lastSoundAt = 0;
@@ -57,6 +59,27 @@ const seatPositionByAbsolute = new Map();
 
 function setStatus(message) {
   if (statusEl) statusEl.textContent = message;
+}
+
+function getStoredPlayerName() {
+  try {
+    return localStorage.getItem(LS_NAME_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+function setStoredPlayerName(name) {
+  try {
+    localStorage.setItem(LS_NAME_KEY, name);
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function updateJoinBarVisibility() {
+  if (!joinSeatBarEl) return;
+  joinSeatBarEl.classList.toggle('hidden', seat !== null);
 }
 
 function parseCard(cardId) {
@@ -684,12 +707,17 @@ if (joinBtn) {
       updateActionButtons();
       return;
     }
+    setStoredPlayerName(inputName);
     ws.send(JSON.stringify({ type: 'sit', name: inputName }));
   };
 }
 
 if (nameEl) {
+  const stored = getStoredPlayerName();
+  if (stored) nameEl.value = stored;
   nameEl.addEventListener('input', () => {
+    const v = nameEl.value.trim();
+    if (v) setStoredPlayerName(v);
     updateActionButtons();
   });
 }
@@ -730,6 +758,7 @@ ws.onmessage = (evt) => {
   }
   if (data.type === 'joined') {
     seat = data.seat ?? null;
+    updateJoinBarVisibility();
     if (seat === null) {
       setStatus(`Chế độ xem - ${data.name}. Bấm Tham gia để ngồi vào bàn.`);
       log('Viewer mode');
@@ -750,6 +779,7 @@ ws.onmessage = (evt) => {
     const latestPlay = processStateSounds(latestGameState, data.game);
     latestGameState = data.game;
     seat = data.you?.seat ?? null;
+    updateJoinBarVisibility();
     hand = data.you.cards;
     selected = new Set([...selected].filter((c) => hand.includes(c)));
     if (seat === null) {
@@ -815,4 +845,5 @@ window.addEventListener('pagehide', () => {
 });
 
 updateLandscapeGate();
+updateJoinBarVisibility();
 updateActionButtons();
