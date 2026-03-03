@@ -1,0 +1,13 @@
+{
+  "name": "tien-len-mien-nam-ws",
+  "version": "1.0.0",
+  "description": "4-player Tien Len Mien Nam via WebSocket",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

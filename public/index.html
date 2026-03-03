@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>Tien Len Mien Nam - 2 to 4 Players</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="table-screen">
+      <header class="top-bar">
+        <h1>Tiến Lên Miền Nam</h1>
+        <section id="join" class="join-box">
+          <input id="name" placeholder="Tên người chơi" maxlength="24" />
+          <button id="joinBtn">Join</button>
+        </section>
+        <section id="status" class="status"></section>
+      </header>
+
+      <section id="table" class="table">
+        <div id="seat-top" class="seat seat-top"></div>
+        <div id="seat-left" class="seat seat-left"></div>
+        <div id="seat-right" class="seat seat-right"></div>
+        <div id="seat-bottom" class="seat seat-bottom"></div>
+
+        <div class="center-pile">
+          <div id="turnInfo" class="turn-info">Chờ bắt đầu ván</div>
+          <div id="lastPlayBy" class="last-play-by">Chưa có bài</div>
+          <div id="lastPlayCards" class="last-play-cards"></div>
+        </div>
+
+        <div class="controls">
+          <button id="startBtn">Start Game</button>
+          <button id="playBtn">Play Selected</button>
+          <button id="passBtn">Pass</button>
+        </div>
+      </section>
+
+      <section class="your-hand-area">
+        <h2>Bài của bạn</h2>
+        <div id="hand"></div>
+      </section>
+
+      <details class="debug">
+        <summary>Debug</summary>
+        <pre id="game"></pre>
+        <pre id="log"></pre>
+      </details>
+    </main>
+    <script src="/config.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>
