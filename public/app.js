@@ -55,6 +55,10 @@ let bgmStarted = false;
 let bgmTimer = null;
 const seatPositionByAbsolute = new Map();
 
+function setStatus(message) {
+  if (statusEl) statusEl.textContent = message;
+}
+
 function parseCard(cardId) {
   const m = String(cardId).match(/^(10|[3-9JQKA2])([SCDH])$/);
   if (!m) return null;
@@ -680,10 +684,12 @@ function renderCenter(gameState) {
   renderPileStack(gameState.trickCombo.cards);
 }
 
-joinBtn.onclick = () => {
-  void tryLockLandscape();
-  ws.send(JSON.stringify({ type: 'join', name: nameEl.value.trim() || undefined }));
-};
+if (joinBtn) {
+  joinBtn.onclick = () => {
+    void tryLockLandscape();
+    ws.send(JSON.stringify({ type: 'join', name: nameEl?.value?.trim() || undefined }));
+  };
+}
 
 startBtn.onclick = () => {
   void tryLockLandscape();
@@ -707,7 +713,7 @@ passBtn.onclick = () => {
 };
 
 ws.onopen = () => {
-  statusEl.textContent = `Connected: ${WS_URL}`;
+  setStatus(`Connected: ${WS_URL}`);
   log('Connected');
 };
 
@@ -716,16 +722,16 @@ ws.onmessage = (evt) => {
 
   if (data.type === 'error') log(`Error: ${data.message}`);
   if (data.type === 'welcome') {
-    statusEl.textContent = 'Connected';
+    setStatus('Connected');
     log(data.message);
   }
   if (data.type === 'joined') {
     seat = data.seat ?? null;
     if (seat === null) {
-      statusEl.textContent = `Chế độ xem - ${data.name}. Bấm + để ngồi vào bàn.`;
+      setStatus(`Chế độ xem - ${data.name}. Bấm + để ngồi vào bàn.`);
       log('Viewer mode');
     } else {
-      statusEl.textContent = `Đã ngồi ghế ${seat}: ${data.name}`;
+      setStatus(`Đã ngồi ghế ${seat}: ${data.name}`);
       log(`Sat at seat ${seat}`);
     }
     updateActionButtons();
@@ -744,9 +750,9 @@ ws.onmessage = (evt) => {
     hand = data.you.cards;
     selected = new Set([...selected].filter((c) => hand.includes(c)));
     if (seat === null) {
-      statusEl.textContent = `Chế độ xem - ${data.you?.name || 'Guest'}. Bấm + để ngồi vào bàn.`;
+      setStatus(`Chế độ xem - ${data.you?.name || 'Guest'}. Bấm + để ngồi vào bàn.`);
     } else {
-      statusEl.textContent = `Bạn đang ngồi ghế ${seat} (${data.you?.name || 'Player'})`;
+      setStatus(`Bạn đang ngồi ghế ${seat} (${data.you?.name || 'Player'})`);
     }
     renderHand();
     renderSeats(latestGameState);
@@ -759,13 +765,13 @@ ws.onmessage = (evt) => {
 
 ws.onclose = () => {
   latestGameState = null;
-  statusEl.textContent = 'Disconnected';
+  setStatus('Disconnected');
   updateActionButtons();
   log('Disconnected');
 };
 
 ws.onerror = () => {
-  statusEl.textContent = `Cannot connect to ${WS_URL}`;
+  setStatus(`Cannot connect to ${WS_URL}`);
 };
 
 window.addEventListener('resize', () => {
