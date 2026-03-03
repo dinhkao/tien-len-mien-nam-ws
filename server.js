@@ -523,10 +523,28 @@ function removePlayer(ws) {
 }
 
 const server = http.createServer((req, res) => {
+  const urlPath = (req.url || '/').split('?')[0];
+
+  if (urlPath === '/health') {
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('ok');
+    return;
+  }
+
+  if (urlPath === '/config.js') {
+    const wsUrl = String(process.env.WS_URL || '');
+    const js = `window.TLMN_CONFIG = { WS_URL: ${JSON.stringify(wsUrl)} };`;
+    res.writeHead(200, {
+      'Content-Type': 'application/javascript; charset=utf-8',
+      'Cache-Control': 'no-store',
+    });
+    res.end(js);
+    return;
+  }
+
   let file = 'public/index.html';
-  if (req.url === '/app.js') file = 'public/app.js';
-  if (req.url === '/config.js') file = 'public/config.js';
-  if (req.url === '/styles.css') file = 'public/styles.css';
+  if (urlPath === '/app.js') file = 'public/app.js';
+  if (urlPath === '/styles.css') file = 'public/styles.css';
 
   const fullPath = path.join(__dirname, file);
   fs.readFile(fullPath, (err, data) => {

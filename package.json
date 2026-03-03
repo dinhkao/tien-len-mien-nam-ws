@@ -1,7 +1,7 @@
 {
   "name": "tien-len-mien-nam-ws",
   "version": "1.0.0",
-  "description": "4-player Tien Len Mien Nam via WebSocket",
+  "description": "2-4 player Tien Len Mien Nam via WebSocket",
   "main": "server.js",
   "type": "commonjs",
   "scripts": {

@@ -39,16 +39,54 @@ const seatBottomEl = document.getElementById('seat-bottom');
 const turnInfoEl = document.getElementById('turnInfo');
 const lastPlayByEl = document.getElementById('lastPlayBy');
 const lastPlayCardsEl = document.getElementById('lastPlayCards');
+const landscapeLockEl = document.getElementById('landscapeLock');
+const lockLandscapeBtn = document.getElementById('lockLandscapeBtn');
 const SUIT_ICON = { S: '♠', C: '♣', D: '♦', H: '♥' };
 const RED_SUITS = new Set(['D', 'H']);
 const RANKS = ['3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A', '2'];
 const RANK_VALUE = Object.fromEntries(RANKS.map((r, i) => [r, i + 3]));
 const SUIT_VALUE = { S: 1, C: 2, D: 3, H: 4 };
+const MOBILE_QUERY = '(max-width: 1024px) and (pointer: coarse)';
 
 function parseCard(cardId) {
   const m = String(cardId).match(/^(10|[3-9JQKA2])([SCDH])$/);
   if (!m) return null;
   return { rank: m[1], suit: m[2] };
+}
+
+function isMobileDevice() {
+  return window.matchMedia(MOBILE_QUERY).matches;
+}
+
+function isLandscape() {
+  return window.matchMedia('(orientation: landscape)').matches;
+}
+
+async function tryLockLandscape() {
+  if (!isMobileDevice()) return;
+
+  try {
+    if (screen.orientation && typeof screen.orientation.lock === 'function') {
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+        try {
+          await document.documentElement.requestFullscreen();
+        } catch {
+          // Ignore fullscreen errors and still attempt orientation lock.
+        }
+      }
+      await screen.orientation.lock('landscape');
+    }
+  } catch {
+    // Ignore lock failures; overlay fallback will still enforce orientation.
+  }
+}
+
+function updateLandscapeGate() {
+  const force = isMobileDevice() && !isLandscape();
+  if (landscapeLockEl) {
+    landscapeLockEl.hidden = !force;
+  }
+  document.body.classList.toggle('force-landscape', force);
 }
 
 function cardValue(card) {
@@ -408,19 +446,23 @@ function renderCenter(gameState) {
 }
 
 joinBtn.onclick = () => {
+  void tryLockLandscape();
   ws.send(JSON.stringify({ type: 'join', name: nameEl.value.trim() || undefined }));
 };
 
 startBtn.onclick = () => {
+  void tryLockLandscape();
   ws.send(JSON.stringify({ type: 'start' }));
 };
 
 playBtn.onclick = () => {
+  void tryLockLandscape();
   const cards = [...selected];
   ws.send(JSON.stringify({ type: 'play', cards }));
 };
 
 passBtn.onclick = () => {
+  void tryLockLandscape();
   ws.send(JSON.stringify({ type: 'pass' }));
 };
 
@@ -475,6 +517,20 @@ ws.onerror = () => {
 
 window.addEventListener('resize', () => {
   layoutHand();
+  updateLandscapeGate();
 });
 
+window.addEventListener('orientationchange', () => {
+  updateLandscapeGate();
+  layoutHand();
+});
+
+if (lockLandscapeBtn) {
+  lockLandscapeBtn.onclick = async () => {
+    await tryLockLandscape();
+    updateLandscapeGate();
+  };
+}
+
+updateLandscapeGate();
 updateActionButtons();

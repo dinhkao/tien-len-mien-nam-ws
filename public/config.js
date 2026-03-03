@@ -1,6 +1,6 @@
 window.TLMN_CONFIG = {
-  // For local development, leave empty to use ws(s)://current-host.
-  // For Netlify frontend deployment, set this to your backend websocket URL.
-  // Example: WS_URL: 'wss://tien-len-backend.onrender.com'
+  // Fallback config for static hosting only.
+  // Railway deployment serves /config.js dynamically from server.js + env WS_URL.
+  // Leave empty to use ws(s)://current-host.
   WS_URL: '',
 };

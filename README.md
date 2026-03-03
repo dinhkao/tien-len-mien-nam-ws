@@ -11,22 +11,39 @@ npm start
 
 Open [http://localhost:3000](http://localhost:3000) in 2-4 browser tabs/windows.
 
-## Deploy on Netlify
+## Deploy on Railway (recommended)
 
-This repo is prepared for Netlify static hosting of the frontend (`public/`).
+This app is ready to run on Railway as a single service (frontend + websocket backend in one `server.js` process).
 
-1. Deploy this repository to Netlify (publish dir is already set in `netlify.toml`).
-2. Set your websocket backend URL in [public/config.js](/Volumes/ilyarozanov/tien%20len%20mien%20nam/public/config.js):
+### Option A: Deploy from GitHub
 
-```js
-window.TLMN_CONFIG = { WS_URL: 'wss://your-backend-domain' };
+1. Push code to GitHub.
+2. In Railway dashboard: `New Project` -> `Deploy from GitHub repo`.
+3. Railway auto-detects Node and runs `npm start`.
+4. Open the generated Railway domain.
+
+### Option B: Deploy with Railway CLI
+
+```bash
+railway login
+railway init
+railway up
 ```
 
-3. Redeploy.
+### Environment variables
 
-Notes:
-- Netlify serves the client UI.
-- The realtime websocket game server still needs to run on a websocket-capable backend host.
+- `PORT`: auto-injected by Railway (already supported in code).
+- `WS_URL` (optional): if set, frontend will use this websocket URL via dynamic `/config.js`.
+  - For single-service Railway deploy, leave `WS_URL` empty.
+
+### Healthcheck
+
+- `GET /health` returns `ok`.
+- `railway.json` is included with start command + healthcheck path.
+
+## Deploy on Netlify (frontend only, optional)
+
+If you deploy frontend on Netlify, you still need a separate websocket backend host and set `WS_URL` accordingly.
 
 ## Gameplay implemented
 
