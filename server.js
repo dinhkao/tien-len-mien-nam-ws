@@ -7,6 +7,7 @@ const { WebSocketServer } = require('ws');
 const PORT = process.env.PORT || 3000;
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 4;
+const STARTING_COINS = 10;
 
 const RANKS = ['3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A', '2'];
 const SUITS = ['S', 'C', 'D', 'H'];
@@ -208,6 +209,71 @@ function comboBeats(next, current) {
   return next.highRankValue > current.highRankValue;
 }
 
+function twoPenaltyForCard(card) {
+  if (!card || card.rank !== '2') return 0;
+  return card.suit === 'D' || card.suit === 'H' ? 2 : 1;
+}
+
+function twoPenaltyForCards(cards) {
+  if (!Array.isArray(cards)) return 0;
+  return cards.reduce((sum, c) => sum + twoPenaltyForCard(c), 0);
+}
+
+function isTwoCombo(combo) {
+  if (!combo) return false;
+  return combo.containsTwo && (combo.type === 'single' || combo.type === 'pair');
+}
+
+function isBombCombo(combo) {
+  if (!combo) return false;
+  if (combo.type === 'quad') return true;
+  if (combo.type === 'pair_straight' && combo.chainLength >= 3) return true;
+  return false;
+}
+
+function rewardsByRank(playerCount) {
+  if (playerCount <= 1) return [0];
+  if (playerCount === 2) return [2, -2];
+  if (playerCount === 3) return [2, 1, -3];
+  return [2, 1, -1, -2];
+}
+
+function settleRoundCoins(winner) {
+  const players = seatedClients();
+  if (!winner || players.length === 0) return;
+
+  const ranked = [...players].sort((a, b) => {
+    if (a.seat === winner.seat) return -1;
+    if (b.seat === winner.seat) return 1;
+    const byCards = a.cards.length - b.cards.length;
+    if (byCards !== 0) return byCards;
+    return a.seat - b.seat;
+  });
+
+  const rewards = rewardsByRank(ranked.length);
+  const summary = [];
+  ranked.forEach((p, idx) => {
+    const delta = rewards[idx] || 0;
+    if (delta === 0) return;
+    p.coins += delta;
+    const rankLabel = idx === 0 ? 'nhất' : idx === 1 ? 'nhì' : idx === ranked.length - 1 ? 'bét' : 'ba';
+    summary.push(`${p.name} ${delta > 0 ? '+' : ''}${delta}đ (${rankLabel})`);
+  });
+
+  for (const p of ranked) {
+    if (p.seat === winner.seat) continue;
+    const stuckTwoPenalty = twoPenaltyForCards(p.cards);
+    if (stuckTwoPenalty <= 0) continue;
+    p.coins -= stuckTwoPenalty;
+    winner.coins += stuckTwoPenalty;
+    summary.push(`${p.name} thúi heo -${stuckTwoPenalty}đ -> ${winner.name}`);
+  }
+
+  if (summary.length > 0) {
+    broadcast({ type: 'info', message: `Tính tiền ván: ${summary.join(' | ')}` });
+  }
+}
+
 const room = {
   clients: new Map(),
   started: false,
@@ -294,6 +360,7 @@ function publicState(forSeat) {
       seat: p.seat,
       name: p.name,
       connected: p.ws.readyState === p.ws.OPEN,
+      coins: Number.isFinite(p.coins) ? p.coins : STARTING_COINS,
       cardsCount: p.cards.length,
       revealedCards: room.ended ? sortCards(p.cards).map((card) => card.id) : null,
       isYou: p.seat === forSeat,
@@ -310,6 +377,7 @@ function sendState() {
       you: {
         seat: c.seat,
         name: c.name,
+        coins: Number.isFinite(c.coins) ? c.coins : STARTING_COINS,
         cards: c.seat !== null ? sortCards(c.cards).map((card) => card.id) : [],
       },
       game: publicState(c.seat),
@@ -417,7 +485,7 @@ function handleSetName(client, data) {
     client.name = name.slice(0, 24);
     client.hasCustomName = true;
   }
-  sendTo(client.ws, { type: 'joined', seat: client.seat, name: client.name });
+  sendTo(client.ws, { type: 'joined', seat: client.seat, name: client.name, coins: client.coins });
   sendState();
 }
 
@@ -437,7 +505,7 @@ function handleSit(client, data) {
   }
 
   if (client.seat !== null) {
-    return sendTo(client.ws, { type: 'joined', seat: client.seat, name: client.name });
+    return sendTo(client.ws, { type: 'joined', seat: client.seat, name: client.name, coins: client.coins });
   }
 
   const freeSeats = [...Array(MAX_PLAYERS).keys()].filter((s) => !getClientBySeat(s));
@@ -448,10 +516,11 @@ function handleSit(client, data) {
   const seat = freeSeats[0];
 
   const prevSeat = client.seat;
+  if (!Number.isFinite(client.coins)) client.coins = STARTING_COINS;
   client.seat = seat;
   client.cards = [];
 
-  sendTo(client.ws, { type: 'joined', seat: client.seat, name: client.name });
+  sendTo(client.ws, { type: 'joined', seat: client.seat, name: client.name, coins: client.coins });
   if (prevSeat !== seat) {
     broadcast({ type: 'player_joined', seat: client.seat, name: client.name });
   }
@@ -471,7 +540,7 @@ function handleLeaveSeat(client) {
   client.cards = [];
 
   broadcast({ type: 'player_left', seat: oldSeat, name: client.name });
-  sendTo(client.ws, { type: 'joined', seat: null, name: client.name });
+  sendTo(client.ws, { type: 'joined', seat: null, name: client.name, coins: client.coins });
   sendState();
 }
 
@@ -511,6 +580,17 @@ function handlePlay(client, data) {
     return sendTo(client.ws, { type: 'error', message: 'Your play does not beat current combo.' });
   }
 
+  const choppedTwo = room.trickCombo && isTwoCombo(room.trickCombo) && isBombCombo(combo);
+  if (choppedTwo && room.lastPlaySeat !== null) {
+    const victim = getClientBySeat(room.lastPlaySeat);
+    const chopAmount = twoPenaltyForCards(room.trickCombo.cards);
+    if (victim && victim.ws !== client.ws && chopAmount > 0) {
+      victim.coins -= chopAmount;
+      client.coins += chopAmount;
+      broadcast({ type: 'info', message: `${client.name} chặt heo: +${chopAmount}đ, ${victim.name} -${chopAmount}đ` });
+    }
+  }
+
   client.cards = removePlayedCards(client.cards, own.cards);
 
   room.trickCombo = combo;
@@ -529,6 +609,7 @@ function handlePlay(client, data) {
   if (client.cards.length === 0) {
     room.ended = true;
     room.winnerSeat = client.seat;
+    settleRoundCoins(client);
     broadcast({ type: 'game_ended', winnerSeat: client.seat, winnerName: client.name });
     return sendState();
   }
@@ -684,6 +765,7 @@ wss.on('connection', (ws) => {
     name: `Guest ${nextClientId}`,
     hasCustomName: false,
     seat: null,
+    coins: STARTING_COINS,
     cards: [],
   };
   nextClientId += 1;
@@ -692,9 +774,9 @@ wss.on('connection', (ws) => {
   sendTo(ws, {
     type: 'welcome',
     message:
-      'Everyone can watch. Send {"type":"sit","name":"Your name"} to join the table automatically.',
+      `Everyone can watch. New players start with ${STARTING_COINS} coins. Send {"type":"sit","name":"Your name"} to join the table automatically.`,
   });
-  sendTo(ws, { type: 'joined', seat: client.seat, name: client.name });
+  sendTo(ws, { type: 'joined', seat: client.seat, name: client.name, coins: client.coins });
   sendState();
 
   ws.on('message', (raw) => {

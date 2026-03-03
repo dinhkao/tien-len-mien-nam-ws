@@ -89,6 +89,12 @@ function parseCard(cardId) {
   return { rank: m[1], suit: m[2] };
 }
 
+function formatCoins(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '0đ';
+  return `${n}đ`;
+}
+
 function ensureAudioContext() {
   if (audioCtx) return audioCtx;
   const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -784,7 +790,7 @@ function renderSeats(gameState) {
           <span class="badge">${label}</span>
           ${poopButton}
         </div>
-        <div class="player-meta">${player.cardsCount} lá bài</div>
+        <div class="player-meta">${player.cardsCount} lá bài · ${formatCoins(player.coins)}</div>
         ${cardsBlock}
       </div>
     `;
@@ -895,7 +901,7 @@ ws.onmessage = (evt) => {
       setStatus(`Chế độ xem - ${data.name}. Bấm Tham gia để ngồi vào bàn.`);
       log('Viewer mode');
     } else {
-      setStatus(`Đã ngồi ghế ${seat}: ${data.name}`);
+      setStatus(`Đã ngồi ghế ${seat}: ${data.name} · ${formatCoins(data.coins)}`);
       log(`Sat at seat ${seat}`);
     }
     updateActionButtons();
@@ -928,7 +934,7 @@ ws.onmessage = (evt) => {
     if (seat === null) {
       setStatus(`Chế độ xem - ${data.you?.name || 'Guest'}. Bấm Tham gia để ngồi vào bàn.`);
     } else {
-      setStatus(`Bạn đang ngồi ghế ${seat} (${data.you?.name || 'Player'})`);
+      setStatus(`Bạn đang ngồi ghế ${seat} (${data.you?.name || 'Player'}) · ${formatCoins(data.you?.coins)}`);
     }
     renderHand();
     renderSeats(latestGameState);
