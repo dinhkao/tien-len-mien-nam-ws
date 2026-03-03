@@ -344,7 +344,7 @@ button:disabled {
   display: flex;
   gap: 0;
   flex-wrap: nowrap;
-  justify-content: flex-start;
+  justify-content: center;
   align-items: flex-end;
   overflow-x: hidden;
   overflow-y: visible;
@@ -492,7 +492,7 @@ body.force-landscape .landscape-lock {
 @media (max-width: 860px) {
   :root {
     --hand-card-width: 56px;
-    --hand-max-step: 28px;
+    --hand-max-step: 30px;
     --hand-overlap: 14px;
     --center-overlap: 10px;
   }
@@ -526,8 +526,8 @@ body.force-landscape .landscape-lock {
 
 @media (orientation: landscape) and (max-height: 520px) {
   :root {
-    --hand-card-width: 46px;
-    --hand-max-step: 22px;
+    --hand-card-width: 48px;
+    --hand-max-step: 24px;
     --hand-overlap: 18px;
     --center-overlap: 10px;
   }
@@ -710,7 +710,7 @@ body.force-landscape .landscape-lock {
   }
 
   #hand {
-    justify-content: flex-start;
+    justify-content: center;
     height: 76px;
     padding: 4px 8px 0;
   }

@@ -50,6 +50,8 @@ const MOBILE_QUERY = '(max-width: 1024px) and (pointer: coarse)';
 let audioCtx = null;
 let audioUnlocked = false;
 let lastSoundAt = 0;
+let bgmStarted = false;
+let bgmTimer = null;
 
 function parseCard(cardId) {
   const m = String(cardId).match(/^(10|[3-9JQKA2])([SCDH])$/);
@@ -71,6 +73,7 @@ async function unlockAudio() {
   try {
     if (ctx.state !== 'running') await ctx.resume();
     audioUnlocked = ctx.state === 'running';
+    if (audioUnlocked) maybeStartBackgroundMusic();
   } catch {
     audioUnlocked = false;
   }
@@ -102,14 +105,33 @@ function playTone({ freq = 440, duration = 0.08, gain = 0.05, type = 'sine', whe
 }
 
 function playCardSfx() {
-  playTone({ freq: 640, duration: 0.05, gain: 0.035, type: 'triangle', when: 0 });
-  playTone({ freq: 820, duration: 0.06, gain: 0.03, type: 'triangle', when: 0.045 });
+  playTone({ freq: 640, duration: 0.05, gain: 0.045, type: 'triangle', when: 0 });
+  playTone({ freq: 820, duration: 0.06, gain: 0.04, type: 'triangle', when: 0.045 });
 }
 
 function playBombSfx() {
-  playTone({ freq: 180, endFreq: 48, duration: 0.34, gain: 0.09, type: 'sawtooth', when: 0 });
-  playTone({ freq: 90, endFreq: 38, duration: 0.28, gain: 0.06, type: 'triangle', when: 0.04 });
-  playTone({ freq: 1200, endFreq: 170, duration: 0.16, gain: 0.03, type: 'square', when: 0.02 });
+  playTone({ freq: 180, endFreq: 48, duration: 0.34, gain: 0.12, type: 'sawtooth', when: 0 });
+  playTone({ freq: 90, endFreq: 38, duration: 0.28, gain: 0.08, type: 'triangle', when: 0.04 });
+  playTone({ freq: 1200, endFreq: 170, duration: 0.16, gain: 0.045, type: 'square', when: 0.02 });
+}
+
+function scheduleBgmLoop() {
+  if (!audioUnlocked) return;
+  // Very light continuous background loop.
+  playTone({ freq: 220, duration: 0.22, gain: 0.014, type: 'sine', when: 0 });
+  playTone({ freq: 277, duration: 0.2, gain: 0.012, type: 'sine', when: 0.45 });
+  playTone({ freq: 330, duration: 0.24, gain: 0.013, type: 'sine', when: 0.9 });
+  playTone({ freq: 277, duration: 0.2, gain: 0.012, type: 'sine', when: 1.35 });
+}
+
+function maybeStartBackgroundMusic() {
+  if (!audioUnlocked || bgmStarted) return;
+  bgmStarted = true;
+  scheduleBgmLoop();
+  bgmTimer = window.setInterval(() => {
+    if (!audioUnlocked) return;
+    scheduleBgmLoop();
+  }, 1800);
 }
 
 function isMobileDevice() {
@@ -649,6 +671,13 @@ window.addEventListener('touchstart', () => {
 
 window.addEventListener('keydown', () => {
   void unlockAudio();
+});
+
+window.addEventListener('pagehide', () => {
+  if (bgmTimer) {
+    window.clearInterval(bgmTimer);
+    bgmTimer = null;
+  }
 });
 
 updateLandscapeGate();
