@@ -323,13 +323,24 @@ button:disabled {
 
 .pile-layer.top {
   z-index: 3;
-  transform: translate(-48%, -51%) rotate(2deg);
+  transform: translate(-48%, -51%) rotate(1.4deg);
 }
 
 .pile-layer.under {
-  opacity: 0.42;
-  transform: translate(-54%, -47%) rotate(-3deg) scale(0.96);
-  filter: saturate(0.8) brightness(0.9);
+  opacity: 0.58;
+  transform: translate(-52%, -49%) rotate(-1.4deg) scale(0.97);
+  filter: blur(0.9px) saturate(0.55) brightness(0.78);
+}
+
+.pile-layer.under .center-card {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  border-color: rgba(170, 180, 190, 0.72);
+  background: linear-gradient(180deg, #d5dee5, #bac6cf);
+}
+
+.pile-layer.under .center-card .rank,
+.pile-layer.under .center-card .suit {
+  opacity: 0.78;
 }
 
 .pile-layer.incoming {
