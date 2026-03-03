@@ -53,6 +53,7 @@ const LS_NAME_KEY = 'tlmn_player_name';
 let audioCtx = null;
 let audioUnlocked = false;
 let lastSoundAt = 0;
+let lastTurnSfxKey = '';
 let bgmStarted = false;
 let bgmTimer = null;
 const seatPositionByAbsolute = new Map();
@@ -142,6 +143,34 @@ function playBombSfx() {
   playTone({ freq: 180, endFreq: 48, duration: 0.34, gain: 0.12, type: 'sawtooth', when: 0 });
   playTone({ freq: 90, endFreq: 38, duration: 0.28, gain: 0.08, type: 'triangle', when: 0.04 });
   playTone({ freq: 1200, endFreq: 170, duration: 0.16, gain: 0.045, type: 'square', when: 0.02 });
+}
+
+function playYourTurnSfx() {
+  playTone({ freq: 520, duration: 0.08, gain: 0.06, type: 'triangle', when: 0 });
+  playTone({ freq: 700, duration: 0.09, gain: 0.065, type: 'triangle', when: 0.07 });
+  playTone({ freq: 940, duration: 0.12, gain: 0.07, type: 'sine', when: 0.15 });
+}
+
+function buildTurnSfxKey(gameState) {
+  const historyLen = Array.isArray(gameState?.trickHistory) ? gameState.trickHistory.length : 0;
+  const comboSize = Array.isArray(gameState?.trickCombo?.cards) ? gameState.trickCombo.cards.length : 0;
+  const turn = gameState?.currentTurn ?? 'x';
+  const last = gameState?.lastPlaySeat ?? 'x';
+  return `${turn}|${historyLen}|${comboSize}|${last}`;
+}
+
+function processTurnSfx(gameState, mySeat) {
+  const yourTurn = mySeat !== null && gameState?.started && !gameState?.ended && gameState?.currentTurn === mySeat;
+  if (!yourTurn) {
+    lastTurnSfxKey = '';
+    return;
+  }
+
+  const key = buildTurnSfxKey(gameState);
+  if (key !== lastTurnSfxKey) {
+    playYourTurnSfx();
+    lastTurnSfxKey = key;
+  }
 }
 
 function scheduleBgmLoop() {
@@ -777,8 +806,10 @@ ws.onmessage = (evt) => {
 
   if (data.type === 'state') {
     const latestPlay = processStateSounds(latestGameState, data.game);
+    const nextSeat = data.you?.seat ?? null;
+    processTurnSfx(data.game, nextSeat);
     latestGameState = data.game;
-    seat = data.you?.seat ?? null;
+    seat = nextSeat;
     updateJoinBarVisibility();
     hand = data.you.cards;
     selected = new Set([...selected].filter((c) => hand.includes(c)));
@@ -798,6 +829,7 @@ ws.onmessage = (evt) => {
 
 ws.onclose = () => {
   latestGameState = null;
+  lastTurnSfxKey = '';
   setStatus('Disconnected');
   updateActionButtons();
   log('Disconnected');
