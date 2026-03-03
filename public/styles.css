@@ -289,6 +289,7 @@ button:disabled {
 }
 
 .last-play-cards {
+  position: relative;
   margin-top: 10px;
   min-height: 84px;
   display: flex;
@@ -308,6 +309,30 @@ button:disabled {
 
 .last-play-cards .center-card:first-child {
   margin-left: 0;
+}
+
+.pile-layer {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  z-index: 1;
+}
+
+.pile-layer.top {
+  z-index: 3;
+}
+
+.pile-layer.under {
+  opacity: 0.5;
+  transform: translate(-50%, -50%) scale(0.97);
+  filter: saturate(0.85);
+}
+
+.pile-layer.incoming {
+  animation: pile-pop 220ms ease-out;
 }
 
 .center-card {
@@ -339,6 +364,63 @@ button:disabled {
 .center-card .suit {
   font-size: 30px;
   line-height: 1;
+}
+
+.fly-card {
+  position: fixed;
+  z-index: 999;
+  pointer-events: none;
+  width: 36px;
+  height: 52px;
+  opacity: 0;
+  transform: translate3d(0, 0, 0) scale(1);
+  transition: transform 480ms cubic-bezier(0.2, 0.7, 0.2, 1), opacity 460ms ease-out;
+}
+
+.fly-card.go {
+  opacity: 1;
+  transform: translate3d(var(--dx), var(--dy), 0) scale(0.9);
+}
+
+.fly-card-face {
+  width: 100%;
+  height: 100%;
+  border-radius: 7px;
+  border: 1px solid #ced8de;
+  background: linear-gradient(180deg, #ffffff, #eaf0f4);
+  color: #121212;
+  padding: 4px 4px 3px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 2px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.fly-card-face .rank {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.fly-card-face .suit {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.fly-card-face.red {
+  color: #c02020;
+}
+
+@keyframes pile-pop {
+  0% {
+    opacity: 0.75;
+    transform: translate(-50%, -50%) scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
 }
 
 .controls {

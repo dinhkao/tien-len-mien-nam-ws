@@ -53,6 +53,7 @@ let audioUnlocked = false;
 let lastSoundAt = 0;
 let bgmStarted = false;
 let bgmTimer = null;
+const seatPositionByAbsolute = new Map();
 
 function parseCard(cardId) {
   const m = String(cardId).match(/^(10|[3-9JQKA2])([SCDH])$/);
@@ -353,14 +354,14 @@ function isBombAgainstTwo(playedCombo) {
 }
 
 function processStateSounds(prevState, nextState) {
-  if (!nextState || !Array.isArray(nextState.trickHistory)) return;
+  if (!nextState || !Array.isArray(nextState.trickHistory)) return null;
   const history = nextState.trickHistory;
   const newestAt = history.reduce((max, h) => (typeof h.at === 'number' ? Math.max(max, h.at) : max), 0);
-  if (newestAt <= 0) return;
+  if (newestAt <= 0) return null;
 
   if (!prevState) {
     lastSoundAt = newestAt;
-    return;
+    return null;
   }
 
   const newEntries = history
@@ -369,7 +370,7 @@ function processStateSounds(prevState, nextState) {
 
   if (newEntries.length === 0) {
     lastSoundAt = Math.max(lastSoundAt, newestAt);
-    return;
+    return null;
   }
 
   const latestPlay = [...newEntries].reverse().find((e) => e.action === 'play');
@@ -378,9 +379,12 @@ function processStateSounds(prevState, nextState) {
     const chopTwo = isTwoCombo(prevState.trickCombo) && isBombAgainstTwo(playedCombo);
     if (chopTwo) playBombSfx();
     else playCardSfx();
+    lastSoundAt = newestAt;
+    return latestPlay;
   }
 
   lastSoundAt = newestAt;
+  return null;
 }
 
 function updateActionButtons() {
@@ -434,6 +438,75 @@ function renderFaceCard(cardId, className) {
   if (!parsed) return `<div class="${className}">${escapeHtml(cardId)}</div>`;
   const colorClass = RED_SUITS.has(parsed.suit) ? 'red' : 'black';
   return `<div class="${className} ${colorClass}"><span class="rank">${parsed.rank}</span><span class="suit">${SUIT_ICON[parsed.suit]}</span></div>`;
+}
+
+function getSeatElementByAbsoluteSeat(absSeat) {
+  const pos = seatPositionByAbsolute.get(absSeat);
+  if (pos === 'top') return seatTopEl;
+  if (pos === 'left') return seatLeftEl;
+  if (pos === 'right') return seatRightEl;
+  return seatBottomEl;
+}
+
+function animatePlayToCenter(playEntry) {
+  if (!playEntry || !Array.isArray(playEntry.cards) || playEntry.cards.length === 0) return;
+
+  const fromEl = getSeatElementByAbsoluteSeat(playEntry.seat);
+  const toEl = lastPlayCardsEl;
+  if (!fromEl || !toEl) return;
+
+  const startRect = fromEl.getBoundingClientRect();
+  const endRect = toEl.getBoundingClientRect();
+  if (!startRect.width || !startRect.height || !endRect.width || !endRect.height) return;
+
+  const fromX = startRect.left + startRect.width / 2;
+  const fromY = startRect.top + startRect.height / 2;
+  const toX = endRect.left + endRect.width / 2;
+  const toY = endRect.top + endRect.height / 2;
+
+  const cardsForAnim = playEntry.cards.slice(0, Math.min(playEntry.cards.length, 6));
+  cardsForAnim.forEach((cardId, i) => {
+    const card = document.createElement('div');
+    card.className = 'fly-card';
+    card.innerHTML = renderFaceCard(cardId, 'fly-card-face');
+    card.style.left = `${fromX - 16 + i * 3}px`;
+    card.style.top = `${fromY - 24 + i * 2}px`;
+    card.style.setProperty('--dx', `${toX - fromX + (i - cardsForAnim.length / 2) * 9}px`);
+    card.style.setProperty('--dy', `${toY - fromY + (i - cardsForAnim.length / 2) * 4}px`);
+    card.style.animationDelay = `${i * 22}ms`;
+
+    document.body.appendChild(card);
+    window.setTimeout(() => card.classList.add('go'), 16);
+    window.setTimeout(() => card.remove(), 560 + i * 22);
+  });
+}
+
+function renderPileStack(cards) {
+  const key = cards.join('|');
+  const existingTop = lastPlayCardsEl.querySelector('.pile-layer.top');
+  if (existingTop && existingTop.dataset.key === key) return;
+
+  const oldLayers = [...lastPlayCardsEl.querySelectorAll('.pile-layer')];
+  oldLayers.forEach((layer) => {
+    layer.classList.remove('top', 'incoming');
+    layer.classList.add('under');
+  });
+
+  const layer = document.createElement('div');
+  layer.className = 'pile-layer top incoming';
+  layer.dataset.key = key;
+  layer.innerHTML = cards.map((c) => renderFaceCard(c, 'center-card')).join('');
+  lastPlayCardsEl.appendChild(layer);
+
+  const allLayers = [...lastPlayCardsEl.querySelectorAll('.pile-layer')];
+  while (allLayers.length > 2) {
+    const first = allLayers.shift();
+    if (first) first.remove();
+  }
+
+  window.setTimeout(() => {
+    layer.classList.remove('incoming');
+  }, 240);
 }
 
 function log(msg) {
@@ -536,6 +609,7 @@ function renderSeats(gameState) {
 
   for (let i = 0; i < order.length && i < 4; i++) {
     const absoluteSeat = order[i];
+    seatPositionByAbsolute.set(absoluteSeat, positions[i]);
     const player = playersBySeat.get(absoluteSeat);
     if (!player) continue;
     const pos = positions[i];
@@ -603,7 +677,7 @@ function renderCenter(gameState) {
   const bySeat = gameState.lastPlaySeat;
   const byPlayer = gameState.players.find((p) => p.seat === bySeat);
   lastPlayByEl.textContent = byPlayer ? `Bài vừa đánh: ${byPlayer.name}` : 'Bài vừa đánh';
-  lastPlayCardsEl.innerHTML = gameState.trickCombo.cards.map((c) => renderFaceCard(c, 'center-card')).join('');
+  renderPileStack(gameState.trickCombo.cards);
 }
 
 joinBtn.onclick = () => {
@@ -664,7 +738,7 @@ ws.onmessage = (evt) => {
   if (data.type === 'info') log(data.message);
 
   if (data.type === 'state') {
-    processStateSounds(latestGameState, data.game);
+    const latestPlay = processStateSounds(latestGameState, data.game);
     latestGameState = data.game;
     seat = data.you?.seat ?? null;
     hand = data.you.cards;
@@ -677,6 +751,7 @@ ws.onmessage = (evt) => {
     renderHand();
     renderSeats(latestGameState);
     renderCenter(latestGameState);
+    if (latestPlay) animatePlayToCenter(latestPlay);
     gameEl.textContent = JSON.stringify(latestGameState, null, 2);
     updateActionButtons();
   }
