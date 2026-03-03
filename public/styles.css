@@ -264,6 +264,8 @@ button:disabled {
   transform: translate(-50%, -52%);
   width: min(420px, 62vw);
   min-height: clamp(170px, 30vh, 240px);
+  display: flex;
+  flex-direction: column;
   border-radius: 16px;
   border: 1px solid #2c6070;
   background: rgba(4, 32, 42, 0.62);
@@ -290,8 +292,9 @@ button:disabled {
 
 .last-play-cards {
   position: relative;
-  margin-top: 10px;
-  min-height: 84px;
+  margin-top: 8px;
+  min-height: clamp(96px, 20vh, 156px);
+  flex: 1 1 auto;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -817,7 +820,7 @@ body.force-landscape .landscape-lock {
   }
 
   .last-play-cards {
-    min-height: 56px;
+    min-height: clamp(78px, 18vh, 122px);
     padding: 2px 8px;
   }
 
@@ -900,7 +903,7 @@ body.force-landscape .landscape-lock {
   }
 
   .last-play-cards {
-    min-height: 48px;
+    min-height: clamp(68px, 20vh, 106px);
   }
 
   .controls {
