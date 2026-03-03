@@ -572,6 +572,34 @@ function handlePass(client) {
   sendState();
 }
 
+function handlePoop(client, data) {
+  if (client.seat === null) {
+    return sendTo(client.ws, { type: 'error', message: 'Sit on a seat before sending poop.' });
+  }
+
+  const targetSeat = Number(data?.toSeat);
+  if (!Number.isInteger(targetSeat)) {
+    return sendTo(client.ws, { type: 'error', message: 'toSeat must be an integer.' });
+  }
+  if (targetSeat === client.seat) {
+    return sendTo(client.ws, { type: 'error', message: 'Cannot send poop to yourself.' });
+  }
+
+  const target = getClientBySeat(targetSeat);
+  if (!target) {
+    return sendTo(client.ws, { type: 'error', message: 'Target seat is empty.' });
+  }
+
+  sendTo(target.ws, {
+    type: 'poop',
+    fromSeat: client.seat,
+    fromName: client.name,
+    toSeat: targetSeat,
+    at: Date.now(),
+  });
+  sendTo(client.ws, { type: 'info', message: `You sent 💩 to ${target.name}.` });
+}
+
 function handleStart(client) {
   if (client.seat === null) {
     return sendTo(client.ws, { type: 'error', message: 'Sit on a seat before starting.' });
@@ -686,6 +714,7 @@ wss.on('connection', (ws) => {
     if (t === 'leave_seat') return handleLeaveSeat(c);
     if (t === 'play') return handlePlay(c, data);
     if (t === 'pass') return handlePass(c);
+    if (t === 'poop') return handlePoop(c, data);
     if (t === 'start') return handleStart(c);
 
     return sendTo(ws, { type: 'error', message: `Unknown type: ${t}` });

@@ -164,6 +164,56 @@ function playGameEndSfx() {
   playTone({ freq: 1046, duration: 0.2, gain: 0.08, type: 'sine', when: 0.34 });
 }
 
+function playPoopSfx() {
+  playTone({ freq: 160, endFreq: 72, duration: 0.18, gain: 0.075, type: 'sawtooth', when: 0 });
+  playTone({ freq: 250, endFreq: 130, duration: 0.12, gain: 0.06, type: 'square', when: 0.1 });
+  playTone({ freq: 420, endFreq: 180, duration: 0.08, gain: 0.04, type: 'triangle', when: 0.18 });
+}
+
+function canSendPoopToSeat(targetSeat) {
+  if (!Number.isInteger(targetSeat)) return false;
+  if (seat === null || targetSeat === seat) return false;
+  if (ws.readyState !== WebSocket.OPEN) return false;
+  if (!latestGameState || !Array.isArray(latestGameState.players)) return false;
+  return latestGameState.players.some((p) => p.seat === targetSeat);
+}
+
+function sendPoopToSeat(targetSeat) {
+  if (!canSendPoopToSeat(targetSeat)) return;
+  ws.send(JSON.stringify({ type: 'poop', toSeat: targetSeat }));
+}
+
+function bindPoopButtons() {
+  const buttons = document.querySelectorAll('.poop-btn');
+  buttons.forEach((btn) => {
+    const targetSeat = Number(btn.dataset.seat);
+    btn.disabled = !canSendPoopToSeat(targetSeat);
+    btn.onclick = (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      sendPoopToSeat(targetSeat);
+    };
+  });
+}
+
+function showPoopBurst(targetSeat, fromName) {
+  const anchor = getSeatElementByAbsoluteSeat(targetSeat) || seatBottomEl;
+  if (!anchor) return;
+
+  const rect = anchor.getBoundingClientRect();
+  const burst = document.createElement('div');
+  burst.className = 'poop-burst';
+  burst.textContent = '💩';
+  burst.style.left = `${rect.left + rect.width * 0.5}px`;
+  burst.style.top = `${rect.top + rect.height * 0.35}px`;
+  document.body.appendChild(burst);
+  window.requestAnimationFrame(() => burst.classList.add('show'));
+  window.setTimeout(() => burst.remove(), 920);
+
+  const sender = String(fromName || 'Someone');
+  log(`${sender} sent you 💩`);
+}
+
 function buildTurnSfxKey(gameState) {
   const historyLen = Array.isArray(gameState?.trickHistory) ? gameState.trickHistory.length : 0;
   const comboSize = Array.isArray(gameState?.trickCombo?.cards) ? gameState.trickCombo.cards.length : 0;
@@ -724,12 +774,14 @@ function renderSeats(gameState) {
       : isYou
         ? ''
         : renderOpponentCards(player.cardsCount, vertical);
+    const poopButton = isYou ? '' : `<button class="poop-btn" data-seat="${player.seat}" title="Send poop">💩</button>`;
 
     slot.innerHTML = `
       <div class="player-panel ${isTurn ? 'turn' : ''} ${isYou ? 'you' : ''}">
         <div class="player-row">
           <span class="player-name">${escapeHtml(player.name)}</span>
           <span class="badge">${label}</span>
+          ${poopButton}
         </div>
         <div class="player-meta">${player.cardsCount} lá bài</div>
         ${cardsBlock}
@@ -750,6 +802,8 @@ function renderSeats(gameState) {
       </div>
     `;
   }
+
+  bindPoopButtons();
 }
 
 function renderCenter(gameState) {
@@ -854,6 +908,12 @@ ws.onmessage = (evt) => {
   if (data.type === 'game_started') log(`Game started, first turn seat ${data.firstTurn}`);
   if (data.type === 'round_reset') log(`Round reset, seat ${data.nextTurn} starts`);
   if (data.type === 'game_ended') log(`Winner: ${data.winnerName} (seat ${data.winnerSeat})`);
+  if (data.type === 'poop') {
+    if (seat !== null && data.toSeat === seat) {
+      showPoopBurst(data.toSeat, data.fromName);
+      playPoopSfx();
+    }
+  }
   if (data.type === 'info') log(data.message);
 
   if (data.type === 'state') {
