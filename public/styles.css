@@ -10,6 +10,7 @@
   --danger: #f87171;
   --ok: #34d399;
   --hand-card-width: 62px;
+  --hand-max-step: 34px;
   --hand-overlap: 18px;
   --center-overlap: 14px;
 }
@@ -491,6 +492,7 @@ body.force-landscape .landscape-lock {
 @media (max-width: 860px) {
   :root {
     --hand-card-width: 56px;
+    --hand-max-step: 28px;
     --hand-overlap: 14px;
     --center-overlap: 10px;
   }
@@ -525,6 +527,7 @@ body.force-landscape .landscape-lock {
 @media (orientation: landscape) and (max-height: 520px) {
   :root {
     --hand-card-width: 46px;
+    --hand-max-step: 22px;
     --hand-overlap: 18px;
     --center-overlap: 10px;
   }

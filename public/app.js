@@ -47,11 +47,69 @@ const RANKS = ['3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A', '2']
 const RANK_VALUE = Object.fromEntries(RANKS.map((r, i) => [r, i + 3]));
 const SUIT_VALUE = { S: 1, C: 2, D: 3, H: 4 };
 const MOBILE_QUERY = '(max-width: 1024px) and (pointer: coarse)';
+let audioCtx = null;
+let audioUnlocked = false;
+let lastSoundAt = 0;
 
 function parseCard(cardId) {
   const m = String(cardId).match(/^(10|[3-9JQKA2])([SCDH])$/);
   if (!m) return null;
   return { rank: m[1], suit: m[2] };
+}
+
+function ensureAudioContext() {
+  if (audioCtx) return audioCtx;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+  audioCtx = new Ctx();
+  return audioCtx;
+}
+
+async function unlockAudio() {
+  const ctx = ensureAudioContext();
+  if (!ctx) return;
+  try {
+    if (ctx.state !== 'running') await ctx.resume();
+    audioUnlocked = ctx.state === 'running';
+  } catch {
+    audioUnlocked = false;
+  }
+}
+
+function playTone({ freq = 440, duration = 0.08, gain = 0.05, type = 'sine', when = 0, endFreq = null }) {
+  const ctx = ensureAudioContext();
+  if (!ctx || !audioUnlocked) return;
+
+  const t0 = ctx.currentTime + when;
+  const t1 = t0 + duration;
+  const osc = ctx.createOscillator();
+  const amp = ctx.createGain();
+
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t0);
+  if (endFreq !== null) {
+    osc.frequency.exponentialRampToValueAtTime(Math.max(1, endFreq), t1);
+  }
+
+  amp.gain.setValueAtTime(0.0001, t0);
+  amp.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain), t0 + 0.02);
+  amp.gain.exponentialRampToValueAtTime(0.0001, t1);
+
+  osc.connect(amp);
+  amp.connect(ctx.destination);
+  osc.start(t0);
+  osc.stop(t1 + 0.01);
+}
+
+function playCardSfx() {
+  playTone({ freq: 640, duration: 0.05, gain: 0.035, type: 'triangle', when: 0 });
+  playTone({ freq: 820, duration: 0.06, gain: 0.03, type: 'triangle', when: 0.045 });
+}
+
+function playBombSfx() {
+  playTone({ freq: 180, endFreq: 48, duration: 0.34, gain: 0.09, type: 'sawtooth', when: 0 });
+  playTone({ freq: 90, endFreq: 38, duration: 0.28, gain: 0.06, type: 'triangle', when: 0.04 });
+  playTone({ freq: 1200, endFreq: 170, duration: 0.16, gain: 0.03, type: 'square', when: 0.02 });
 }
 
 function isMobileDevice() {
@@ -256,6 +314,52 @@ function isSelectedPlayable(gameState) {
   return comboBeats(nextCombo, currentCombo);
 }
 
+function isTwoCombo(comboLike) {
+  if (!comboLike || !Array.isArray(comboLike.cards)) return false;
+  const parsed = comboLike.cards.map((id) => parseCard(id)).filter(Boolean);
+  if (comboLike.type === 'single' && parsed.length === 1) return parsed[0].rank === '2';
+  if (comboLike.type === 'pair' && parsed.length === 2) return parsed.every((c) => c.rank === '2');
+  return false;
+}
+
+function isBombAgainstTwo(playedCombo) {
+  if (!playedCombo) return false;
+  if (playedCombo.type === 'quad') return true;
+  if (playedCombo.type === 'pair_straight' && playedCombo.chainLength >= 3) return true;
+  return false;
+}
+
+function processStateSounds(prevState, nextState) {
+  if (!nextState || !Array.isArray(nextState.trickHistory)) return;
+  const history = nextState.trickHistory;
+  const newestAt = history.reduce((max, h) => (typeof h.at === 'number' ? Math.max(max, h.at) : max), 0);
+  if (newestAt <= 0) return;
+
+  if (!prevState) {
+    lastSoundAt = newestAt;
+    return;
+  }
+
+  const newEntries = history
+    .filter((h) => h && typeof h.at === 'number' && h.at > lastSoundAt)
+    .sort((a, b) => a.at - b.at);
+
+  if (newEntries.length === 0) {
+    lastSoundAt = Math.max(lastSoundAt, newestAt);
+    return;
+  }
+
+  const latestPlay = [...newEntries].reverse().find((e) => e.action === 'play');
+  if (latestPlay) {
+    const playedCombo = getComboFromIds(latestPlay.cards || []);
+    const chopTwo = isTwoCombo(prevState.trickCombo) && isBombAgainstTwo(playedCombo);
+    if (chopTwo) playBombSfx();
+    else playCardSfx();
+  }
+
+  lastSoundAt = newestAt;
+}
+
 function updateActionButtons() {
   const joined = seat !== null;
   const game = latestGameState;
@@ -343,6 +447,7 @@ function layoutHand() {
   const count = hand.length;
   const style = getComputedStyle(handEl);
   const cardWidth = parseFloat(style.getPropertyValue('--hand-card-width')) || 62;
+  const maxStep = parseFloat(style.getPropertyValue('--hand-max-step')) || cardWidth;
   const padLeft = parseFloat(style.paddingLeft) || 0;
   const padRight = parseFloat(style.paddingRight) || 0;
   const usableWidth = Math.max(0, handEl.clientWidth - padLeft - padRight);
@@ -354,7 +459,7 @@ function layoutHand() {
 
   // Fit exactly in one row: total = cardWidth + (count - 1) * step
   const rawStep = (usableWidth - cardWidth) / (count - 1);
-  const step = Math.max(2, rawStep);
+  const step = Math.max(2, Math.min(maxStep, rawStep));
   handEl.style.setProperty('--computed-card-step', `${step}px`);
 }
 
@@ -493,6 +598,7 @@ ws.onmessage = (evt) => {
   if (data.type === 'info') log(data.message);
 
   if (data.type === 'state') {
+    processStateSounds(latestGameState, data.game);
     latestGameState = data.game;
     hand = data.you.cards;
     selected = new Set([...selected].filter((c) => hand.includes(c)));
@@ -527,10 +633,23 @@ window.addEventListener('orientationchange', () => {
 
 if (lockLandscapeBtn) {
   lockLandscapeBtn.onclick = async () => {
+    await unlockAudio();
     await tryLockLandscape();
     updateLandscapeGate();
   };
 }
+
+window.addEventListener('pointerdown', () => {
+  void unlockAudio();
+}, { passive: true });
+
+window.addEventListener('touchstart', () => {
+  void unlockAudio();
+}, { passive: true });
+
+window.addEventListener('keydown', () => {
+  void unlockAudio();
+});
 
 updateLandscapeGate();
 updateActionButtons();
