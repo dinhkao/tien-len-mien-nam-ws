@@ -213,6 +213,7 @@ const room = {
   started: false,
   ended: false,
   currentTurn: 0,
+  openingMustContain3S: true,
   trickCombo: null,
   trickHistory: [],
   passCount: 0,
@@ -277,6 +278,7 @@ function publicState(forSeat) {
     maxPlayers: MAX_PLAYERS,
     canStart: canStartGame(),
     currentTurn: room.currentTurn,
+    openingMustContain3S: room.openingMustContain3S,
     trickCombo: room.trickCombo
       ? {
           type: room.trickCombo.type,
@@ -327,6 +329,7 @@ function resetGame(reason) {
   room.started = false;
   room.ended = false;
   room.currentTurn = 0;
+  room.openingMustContain3S = true;
   room.trickCombo = null;
   room.trickHistory = [];
   room.passCount = 0;
@@ -366,6 +369,7 @@ function startGame() {
 
   room.started = true;
   room.ended = false;
+  room.openingMustContain3S = true;
   room.trickCombo = null;
   room.trickHistory = [];
   room.passCount = 0;
@@ -375,9 +379,11 @@ function startGame() {
   const winnerStillSeated = players.find((p) => p.seat === prevWinnerSeat);
   if (winnerStillSeated) {
     room.currentTurn = winnerStillSeated.seat;
+    room.openingMustContain3S = false;
   } else {
     const first = players.find((p) => p.cards.some((c) => c.id === '3S'));
     room.currentTurn = first ? first.seat : players[0].seat;
+    room.openingMustContain3S = true;
   }
 
   broadcast({ type: 'game_started', firstTurn: room.currentTurn, playerCount: players.length });
@@ -494,7 +500,7 @@ function handlePlay(client, data) {
   }
 
   const isOpeningPlay = room.trickCombo === null && room.trickHistory.length === 0;
-  if (isOpeningPlay) {
+  if (isOpeningPlay && room.openingMustContain3S) {
     const has3S = own.cards.some((c) => c.id === '3S');
     if (!has3S) {
       return sendTo(client.ws, { type: 'error', message: 'First play must include 3S.' });

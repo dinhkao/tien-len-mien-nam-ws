@@ -397,7 +397,8 @@ function isSelectedPlayable(gameState) {
   if (!nextCombo) return false;
 
   const openingPlay = gameState.trickCombo === null && Array.isArray(gameState.trickHistory) && gameState.trickHistory.length === 0;
-  if (openingPlay && !selectedIds.includes('3S')) return false;
+  const mustContain3S = gameState.openingMustContain3S !== false;
+  if (openingPlay && mustContain3S && !selectedIds.includes('3S')) return false;
 
   if (!gameState.trickCombo) return true;
 
