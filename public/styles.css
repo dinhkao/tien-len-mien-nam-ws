@@ -263,7 +263,7 @@ button:disabled {
   top: 50%;
   transform: translate(-50%, -52%);
   width: min(420px, 62vw);
-  min-height: 170px;
+  min-height: clamp(170px, 30vh, 240px);
   border-radius: 16px;
   border: 1px solid #2c6070;
   background: rgba(4, 32, 42, 0.62);
@@ -639,7 +639,7 @@ body.force-landscape .landscape-lock {
 
   .center-pile {
     width: min(94%, 420px);
-    min-height: 140px;
+    min-height: clamp(160px, 32vh, 220px);
   }
 
   .controls {
@@ -802,7 +802,7 @@ body.force-landscape .landscape-lock {
 
   .center-pile {
     width: min(56vw, 280px);
-    min-height: 118px;
+    min-height: clamp(136px, 34vh, 176px);
     top: 50%;
     border-radius: 12px;
     padding: 7px;
@@ -895,7 +895,7 @@ body.force-landscape .landscape-lock {
 
   .center-pile {
     top: 54%;
-    min-height: 102px;
+    min-height: clamp(122px, 38vh, 156px);
     padding: 6px;
   }
 
