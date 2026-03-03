@@ -590,14 +590,14 @@ function handlePoop(client, data) {
     return sendTo(client.ws, { type: 'error', message: 'Target seat is empty.' });
   }
 
-  sendTo(target.ws, {
+  broadcast({
     type: 'poop',
     fromSeat: client.seat,
     fromName: client.name,
     toSeat: targetSeat,
+    toName: target.name,
     at: Date.now(),
   });
-  sendTo(client.ws, { type: 'info', message: `You sent 💩 to ${target.name}.` });
 }
 
 function handleStart(client) {

@@ -196,8 +196,8 @@ function bindPoopButtons() {
   });
 }
 
-function showPoopBurst(targetSeat, fromName) {
-  const anchor = getSeatElementByAbsoluteSeat(targetSeat) || seatBottomEl;
+function showPoopBurst(targetSeat, fromName, toName) {
+  const anchor = getSeatElementByAbsoluteSeat(targetSeat);
   if (!anchor) return;
 
   const rect = anchor.getBoundingClientRect();
@@ -211,7 +211,8 @@ function showPoopBurst(targetSeat, fromName) {
   window.setTimeout(() => burst.remove(), 920);
 
   const sender = String(fromName || 'Someone');
-  log(`${sender} sent you 💩`);
+  const receiver = String(toName || `seat ${targetSeat}`);
+  log(`${sender} sent 💩 to ${receiver}`);
 }
 
 function buildTurnSfxKey(gameState) {
@@ -909,10 +910,8 @@ ws.onmessage = (evt) => {
   if (data.type === 'round_reset') log(`Round reset, seat ${data.nextTurn} starts`);
   if (data.type === 'game_ended') log(`Winner: ${data.winnerName} (seat ${data.winnerSeat})`);
   if (data.type === 'poop') {
-    if (seat !== null && data.toSeat === seat) {
-      showPoopBurst(data.toSeat, data.fromName);
-      playPoopSfx();
-    }
+    showPoopBurst(data.toSeat, data.fromName, data.toName);
+    playPoopSfx();
   }
   if (data.type === 'info') log(data.message);
 
