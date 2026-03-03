@@ -342,6 +342,7 @@ function startGame() {
   if (!canStartGame()) return;
 
   const players = seatedClients();
+  const prevWinnerSeat = room.winnerSeat;
   const deck = shuffle(createDeck());
   const cardsPerPlayer = 13;
   const totalCardsNeeded = players.length * cardsPerPlayer;
@@ -371,8 +372,13 @@ function startGame() {
   room.lastPlaySeat = null;
   room.winnerSeat = null;
 
-  const first = players.find((p) => p.cards.some((c) => c.id === '3S'));
-  room.currentTurn = first ? first.seat : players[0].seat;
+  const winnerStillSeated = players.find((p) => p.seat === prevWinnerSeat);
+  if (winnerStillSeated) {
+    room.currentTurn = winnerStillSeated.seat;
+  } else {
+    const first = players.find((p) => p.cards.some((c) => c.id === '3S'));
+    room.currentTurn = first ? first.seat : players[0].seat;
+  }
 
   broadcast({ type: 'game_started', firstTurn: room.currentTurn, playerCount: players.length });
   sendState();

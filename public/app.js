@@ -157,6 +157,13 @@ function playUserJoinedSfx() {
   playTone({ freq: 780, duration: 0.1, gain: 0.064, type: 'sine', when: 0.16 });
 }
 
+function playGameEndSfx() {
+  playTone({ freq: 523, duration: 0.12, gain: 0.07, type: 'triangle', when: 0 });
+  playTone({ freq: 659, duration: 0.12, gain: 0.072, type: 'triangle', when: 0.11 });
+  playTone({ freq: 784, duration: 0.16, gain: 0.076, type: 'triangle', when: 0.22 });
+  playTone({ freq: 1046, duration: 0.2, gain: 0.08, type: 'sine', when: 0.34 });
+}
+
 function buildTurnSfxKey(gameState) {
   const historyLen = Array.isArray(gameState?.trickHistory) ? gameState.trickHistory.length : 0;
   const comboSize = Array.isArray(gameState?.trickCombo?.cards) ? gameState.trickCombo.cards.length : 0;
@@ -449,6 +456,12 @@ function processStateSounds(prevState, nextState) {
   return null;
 }
 
+function processGameEndSfx(prevState, nextState) {
+  if (!nextState?.ended) return;
+  if (prevState?.ended) return;
+  playGameEndSfx();
+}
+
 function updateActionButtons() {
   const joined = seat !== null;
   const game = latestGameState;
@@ -503,11 +516,14 @@ function renderRevealedCards(cardIds, vertical = false) {
     return `<div class="revealed-cards ${vertical ? 'vertical' : ''} empty">Hết bài</div>`;
   }
   let styleAttr = '';
-  if (vertical && cardIds.length > 1) {
+  if (cardIds.length > 1) {
     const mobile = isMobileDevice();
-    const maxSpan = mobile ? 80 : 102;
-    const cardMainSize = mobile ? 32 : 42;
-    const step = Math.max(2, (maxSpan - cardMainSize) / (cardIds.length - 1));
+    const maxSpan = vertical ? (mobile ? 80 : 102) : (mobile ? 96 : 192);
+    const cardMainSize = vertical ? (mobile ? 32 : 42) : (mobile ? 22 : 30);
+    const minStep = vertical ? 2 : mobile ? 6 : 8;
+    const maxStep = vertical ? 12 : cardMainSize;
+    const rawStep = (maxSpan - cardMainSize) / (cardIds.length - 1);
+    const step = Math.min(maxStep, Math.max(minStep, rawStep));
     styleAttr = ` style="--revealed-step:${step.toFixed(2)}px"`;
   }
   const cards = cardIds
@@ -701,8 +717,9 @@ function renderSeats(gameState) {
     const vertical = pos === 'left' || pos === 'right';
     const label = isYou ? 'Bạn' : `Ghế ${player.seat}`;
     const showReveal = gameState.ended && Array.isArray(player.revealedCards);
+    const revealVertical = vertical && !isMobileDevice();
     const cardsBlock = showReveal
-      ? renderRevealedCards(player.revealedCards, vertical)
+      ? renderRevealedCards(player.revealedCards, revealVertical)
       : isYou
         ? ''
         : renderOpponentCards(player.cardsCount, vertical);
@@ -839,6 +856,7 @@ ws.onmessage = (evt) => {
   if (data.type === 'info') log(data.message);
 
   if (data.type === 'state') {
+    processGameEndSfx(latestGameState, data.game);
     const latestPlay = processStateSounds(latestGameState, data.game);
     const nextSeat = data.you?.seat ?? null;
     processTurnSfx(data.game, nextSeat);
