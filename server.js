@@ -1,6 +1,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { randomInt } = require('crypto');
 const { WebSocketServer } = require('ws');
 
 const PORT = process.env.PORT || 3000;
@@ -26,7 +27,7 @@ function createDeck() {
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = randomInt(0, i + 1);
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
@@ -292,6 +293,7 @@ function publicState(forSeat) {
       name: p.name,
       connected: p.ws.readyState === p.ws.OPEN,
       cardsCount: p.cards.length,
+      revealedCards: room.ended ? sortCards(p.cards).map((card) => card.id) : null,
       isYou: p.seat === forSeat,
     })),
     seatOrder: seatOrder(),
@@ -347,13 +349,18 @@ function startGame() {
   // Ensure 3S is always in dealt cards so opening rule remains valid.
   const idx3S = deck.findIndex((c) => c.id === '3S');
   if (idx3S >= totalCardsNeeded && totalCardsNeeded > 0) {
-    const swapIdx = totalCardsNeeded - 1;
+    const swapIdx = randomInt(0, totalCardsNeeded);
     [deck[idx3S], deck[swapIdx]] = [deck[swapIdx], deck[idx3S]];
   }
 
   for (const c of allClients()) c.cards = [];
+  const dealStart = randomInt(0, players.length);
+  const clockwise = randomInt(0, 2) === 0;
+  const playerCount = players.length;
   for (let i = 0; i < totalCardsNeeded; i++) {
-    players[i % players.length].cards.push(deck[i]);
+    const offset = clockwise ? i : -i;
+    const playerIdx = (dealStart + offset % playerCount + playerCount) % playerCount;
+    players[playerIdx].cards.push(deck[i]);
   }
 
   room.started = true;

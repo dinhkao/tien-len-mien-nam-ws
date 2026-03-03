@@ -151,6 +151,12 @@ function playYourTurnSfx() {
   playTone({ freq: 940, duration: 0.12, gain: 0.07, type: 'sine', when: 0.15 });
 }
 
+function playUserJoinedSfx() {
+  playTone({ freq: 460, duration: 0.08, gain: 0.058, type: 'triangle', when: 0 });
+  playTone({ freq: 620, duration: 0.09, gain: 0.06, type: 'sine', when: 0.08 });
+  playTone({ freq: 780, duration: 0.1, gain: 0.064, type: 'sine', when: 0.16 });
+}
+
 function buildTurnSfxKey(gameState) {
   const historyLen = Array.isArray(gameState?.trickHistory) ? gameState.trickHistory.length : 0;
   const comboSize = Array.isArray(gameState?.trickCombo?.cards) ? gameState.trickCombo.cards.length : 0;
@@ -492,6 +498,16 @@ function renderOpponentCards(count, vertical = false) {
   return `<div class="opponent-cards ${vertical ? 'vertical' : ''}">${backs}${extra}</div>`;
 }
 
+function renderRevealedCards(cardIds, vertical = false) {
+  if (!Array.isArray(cardIds) || cardIds.length === 0) {
+    return `<div class="revealed-cards ${vertical ? 'vertical' : ''} empty">Hết bài</div>`;
+  }
+  const cards = cardIds
+    .map((cardId, i) => `<span class="revealed-wrap" style="--i:${i}">${renderFaceCard(cardId, 'revealed-card')}</span>`)
+    .join('');
+  return `<div class="revealed-cards ${vertical ? 'vertical' : ''}">${cards}</div>`;
+}
+
 function renderFaceCard(cardId, className) {
   const parsed = parseCard(cardId);
   if (!parsed) return `<div class="${className}">${escapeHtml(cardId)}</div>`;
@@ -676,6 +692,12 @@ function renderSeats(gameState) {
     const isYou = player.seat === seat;
     const vertical = pos === 'left' || pos === 'right';
     const label = isYou ? 'Bạn' : `Ghế ${player.seat}`;
+    const showReveal = gameState.ended && Array.isArray(player.revealedCards);
+    const cardsBlock = showReveal
+      ? renderRevealedCards(player.revealedCards, vertical)
+      : isYou
+        ? ''
+        : renderOpponentCards(player.cardsCount, vertical);
 
     slot.innerHTML = `
       <div class="player-panel ${isTurn ? 'turn' : ''} ${isYou ? 'you' : ''}">
@@ -684,7 +706,7 @@ function renderSeats(gameState) {
           <span class="badge">${label}</span>
         </div>
         <div class="player-meta">${player.cardsCount} lá bài</div>
-        ${isYou ? '' : renderOpponentCards(player.cardsCount, vertical)}
+        ${cardsBlock}
       </div>
     `;
   }
@@ -797,7 +819,11 @@ ws.onmessage = (evt) => {
     }
     updateActionButtons();
   }
-  if (data.type === 'player_joined') log(`${data.name} joined (seat ${data.seat})`);
+  if (data.type === 'player_joined') {
+    log(`${data.name} joined (seat ${data.seat})`);
+    const isSelfJoin = seat !== null && data.seat === seat;
+    if (!isSelfJoin) playUserJoinedSfx();
+  }
   if (data.type === 'player_left') log(`${data.name} left`);
   if (data.type === 'game_started') log(`Game started, first turn seat ${data.firstTurn}`);
   if (data.type === 'round_reset') log(`Round reset, seat ${data.nextTurn} starts`);
