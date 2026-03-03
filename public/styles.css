@@ -323,12 +323,13 @@ button:disabled {
 
 .pile-layer.top {
   z-index: 3;
+  transform: translate(-48%, -51%) rotate(2deg);
 }
 
 .pile-layer.under {
-  opacity: 0.5;
-  transform: translate(-50%, -50%) scale(0.97);
-  filter: saturate(0.85);
+  opacity: 0.42;
+  transform: translate(-54%, -47%) rotate(-3deg) scale(0.96);
+  filter: saturate(0.8) brightness(0.9);
 }
 
 .pile-layer.incoming {
@@ -415,11 +416,11 @@ button:disabled {
 @keyframes pile-pop {
   0% {
     opacity: 0.75;
-    transform: translate(-50%, -50%) scale(0.92);
+    transform: translate(-48%, -51%) rotate(2deg) scale(0.9);
   }
   100% {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
+    transform: translate(-48%, -51%) rotate(2deg) scale(1);
   }
 }
 
@@ -627,6 +628,7 @@ body.force-landscape .landscape-lock {
 
   .center-pile {
     width: min(94%, 420px);
+    min-height: 140px;
   }
 
   .controls {
@@ -789,7 +791,7 @@ body.force-landscape .landscape-lock {
 
   .center-pile {
     width: min(56vw, 280px);
-    min-height: 98px;
+    min-height: 118px;
     top: 50%;
     border-radius: 12px;
     padding: 7px;
@@ -882,7 +884,7 @@ body.force-landscape .landscape-lock {
 
   .center-pile {
     top: 54%;
-    min-height: 88px;
+    min-height: 102px;
     padding: 6px;
   }
 
