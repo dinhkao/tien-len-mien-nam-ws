@@ -502,10 +502,18 @@ function renderRevealedCards(cardIds, vertical = false) {
   if (!Array.isArray(cardIds) || cardIds.length === 0) {
     return `<div class="revealed-cards ${vertical ? 'vertical' : ''} empty">Hết bài</div>`;
   }
+  let styleAttr = '';
+  if (vertical && cardIds.length > 1) {
+    const mobile = isMobileDevice();
+    const maxSpan = mobile ? 80 : 102;
+    const cardMainSize = mobile ? 32 : 42;
+    const step = Math.max(2, (maxSpan - cardMainSize) / (cardIds.length - 1));
+    styleAttr = ` style="--revealed-step:${step.toFixed(2)}px"`;
+  }
   const cards = cardIds
     .map((cardId, i) => `<span class="revealed-wrap" style="--i:${i}">${renderFaceCard(cardId, 'revealed-card')}</span>`)
     .join('');
-  return `<div class="revealed-cards ${vertical ? 'vertical' : ''}">${cards}</div>`;
+  return `<div class="revealed-cards ${vertical ? 'vertical' : ''}"${styleAttr}>${cards}</div>`;
 }
 
 function renderFaceCard(cardId, className) {

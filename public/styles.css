@@ -250,6 +250,7 @@ button:disabled {
 }
 
 .revealed-cards {
+  --revealed-step: 9px;
   position: relative;
   margin-top: 8px;
   height: 44px;
@@ -258,6 +259,7 @@ button:disabled {
 }
 
 .revealed-cards.vertical {
+  --revealed-step: 7px;
   width: 44px;
   height: 102px;
   overflow: visible;
@@ -265,13 +267,13 @@ button:disabled {
 
 .revealed-wrap {
   position: absolute;
-  left: calc(var(--i) * 9px);
+  left: calc(var(--i) * var(--revealed-step));
   top: 0;
 }
 
 .revealed-cards.vertical .revealed-wrap {
   left: 0;
-  top: calc(var(--i) * 7px);
+  top: calc(var(--i) * var(--revealed-step));
 }
 
 .revealed-card {
@@ -873,21 +875,15 @@ body.force-landscape .landscape-lock {
   }
 
   .revealed-cards {
+    --revealed-step: 7px;
     margin-top: 4px;
     height: 34px;
   }
 
   .revealed-cards.vertical {
+    --revealed-step: 6px;
     width: 34px;
     height: 80px;
-  }
-
-  .revealed-wrap {
-    left: calc(var(--i) * 7px);
-  }
-
-  .revealed-cards.vertical .revealed-wrap {
-    top: calc(var(--i) * 6px);
   }
 
   .revealed-card {
