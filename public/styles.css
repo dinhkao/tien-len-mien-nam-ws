@@ -624,7 +624,19 @@ body.force-landscape .landscape-lock {
   }
 
   .seat-top {
-    top: 8px;
+    top: 4px;
+    left: calc(50% - 56px);
+    transform: translateX(-50%);
+  }
+
+  .seat-top .player-panel {
+    min-width: 96px;
+    max-width: 126px;
+    padding: 4px 6px;
+  }
+
+  .seat-top .opponent-cards {
+    display: none;
   }
 
   .seat-bottom {
@@ -695,18 +707,18 @@ body.force-landscape .landscape-lock {
 
   .center-pile {
     width: min(56vw, 280px);
-    min-height: 106px;
-    top: 45%;
+    min-height: 98px;
+    top: 50%;
     border-radius: 12px;
     padding: 7px;
   }
 
   .turn-info {
-    font-size: 14px;
+    font-size: 13px;
   }
 
   .last-play-by {
-    font-size: 12px;
+    font-size: 11px;
   }
 
   .last-play-cards {
@@ -730,7 +742,7 @@ body.force-landscape .landscape-lock {
   }
 
   .controls {
-    bottom: 44px;
+    bottom: 42px;
     gap: 5px;
   }
 
@@ -778,5 +790,25 @@ body.force-landscape .landscape-lock {
 
   .debug {
     display: none;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 430px) {
+  .seat-top {
+    left: calc(50% - 64px);
+  }
+
+  .center-pile {
+    top: 54%;
+    min-height: 88px;
+    padding: 6px;
+  }
+
+  .last-play-cards {
+    min-height: 48px;
+  }
+
+  .controls {
+    bottom: 38px;
   }
 }
