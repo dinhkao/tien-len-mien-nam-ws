@@ -385,7 +385,10 @@ function validateOwnership(player, cardIds) {
 
 function handleSetName(client, data) {
   const name = String(data?.name || '').trim();
-  if (name) client.name = name.slice(0, 24);
+  if (name) {
+    client.name = name.slice(0, 24);
+    client.hasCustomName = true;
+  }
   sendTo(client.ws, { type: 'joined', seat: client.seat, name: client.name });
   sendState();
 }
@@ -395,15 +398,22 @@ function handleSit(client, data) {
     return sendTo(client.ws, { type: 'error', message: 'Cannot sit while game is in progress.' });
   }
 
-  const seat = Number(data?.seat);
-  if (!Number.isInteger(seat) || seat < 0 || seat >= MAX_PLAYERS) {
-    return sendTo(client.ws, { type: 'error', message: 'Invalid seat.' });
+  const inputName = String(data?.name || '').trim();
+  if (inputName) {
+    client.name = inputName.slice(0, 24);
+    client.hasCustomName = true;
   }
 
-  const occupied = getClientBySeat(seat);
-  if (occupied && occupied !== client) {
-    return sendTo(client.ws, { type: 'error', message: 'Seat is already taken.' });
+  if (!client.hasCustomName) {
+    return sendTo(client.ws, { type: 'error', message: 'Please enter your name before joining the table.' });
   }
+
+  const freeSeats = [...Array(MAX_PLAYERS).keys()].filter((s) => !getClientBySeat(s));
+  if (freeSeats.length === 0) {
+    return sendTo(client.ws, { type: 'error', message: 'No empty seat is available.' });
+  }
+
+  const seat = client.seat !== null ? client.seat : freeSeats[0];
 
   const prevSeat = client.seat;
   client.seat = seat;
@@ -612,6 +622,7 @@ wss.on('connection', (ws) => {
     id: nextClientId,
     ws,
     name: `Guest ${nextClientId}`,
+    hasCustomName: false,
     seat: null,
     cards: [],
   };
@@ -621,7 +632,7 @@ wss.on('connection', (ws) => {
   sendTo(ws, {
     type: 'welcome',
     message:
-      'Everyone can watch. Send {"type":"join","name":"Your name"} to set name, then {"type":"sit","seat":0..3} to take a seat.',
+      'Everyone can watch. Send {"type":"sit","name":"Your name"} to join the table automatically.',
   });
   sendTo(ws, { type: 'joined', seat: client.seat, name: client.name });
   sendState();

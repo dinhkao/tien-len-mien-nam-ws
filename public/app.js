@@ -400,6 +400,7 @@ function updateActionButtons() {
     leaveSeatBtn.disabled = true;
     playBtn.disabled = true;
     passBtn.disabled = true;
+    if (joinBtn) joinBtn.disabled = !(nameEl && nameEl.value.trim());
     return;
   }
 
@@ -407,11 +408,13 @@ function updateActionButtons() {
   const canPlayTurn = joined && game.started && !game.ended && yourTurn;
   const canPass = canPlayTurn && !!game.trickCombo && game.lastPlaySeat !== seat;
   const canLeaveSeat = joined && (!game.started || game.ended);
+  const canJoinSeat = !joined && (!game.started || game.ended) && !!(nameEl && nameEl.value.trim());
 
   startBtn.disabled = !joined || !game.canStart;
   leaveSeatBtn.disabled = !canLeaveSeat;
   playBtn.disabled = !canPlayTurn || !isSelectedPlayable(game);
   passBtn.disabled = !canPass;
+  if (joinBtn) joinBtn.disabled = !canJoinSeat;
 }
 
 function escapeHtml(str) {
@@ -605,7 +608,6 @@ function renderSeats(gameState) {
       ? gameState.seatOrder
       : [0, 1, 2, 3];
   const order = seat !== null ? rotateToSeat(baseOrder, seat) : baseOrder;
-  const canSitNow = !gameState.started || gameState.ended;
 
   Object.values(slotEls).forEach((el) => {
     el.innerHTML = '';
@@ -640,25 +642,14 @@ function renderSeats(gameState) {
     if (playersBySeat.has(absoluteSeat)) continue;
     const pos = positions[i];
     const slot = slotEls[pos];
-    const canTakeThisSeat = canSitNow;
 
     slot.innerHTML = `
       <div class=\"empty-seat\">
         <span>Ghế ${absoluteSeat}</span>
-        <button class=\"seat-plus\" data-seat=\"${absoluteSeat}\" ${canTakeThisSeat ? '' : 'disabled'}>+</button>
+        <span>Trong</span>
       </div>
     `;
   }
-
-  document.querySelectorAll('.seat-plus').forEach((btn) => {
-    btn.onclick = () => {
-      if (!latestGameState || (latestGameState.started && !latestGameState.ended)) return;
-      const targetSeat = Number(btn.getAttribute('data-seat'));
-      if (!Number.isInteger(targetSeat)) return;
-      void tryLockLandscape();
-      ws.send(JSON.stringify({ type: 'sit', seat: targetSeat }));
-    };
-  });
 }
 
 function renderCenter(gameState) {
@@ -687,8 +678,20 @@ function renderCenter(gameState) {
 if (joinBtn) {
   joinBtn.onclick = () => {
     void tryLockLandscape();
-    ws.send(JSON.stringify({ type: 'join', name: nameEl?.value?.trim() || undefined }));
+    const inputName = nameEl?.value?.trim() || '';
+    if (!inputName) {
+      log('Error: Nhap ten truoc khi tham gia.');
+      updateActionButtons();
+      return;
+    }
+    ws.send(JSON.stringify({ type: 'sit', name: inputName }));
   };
+}
+
+if (nameEl) {
+  nameEl.addEventListener('input', () => {
+    updateActionButtons();
+  });
 }
 
 startBtn.onclick = () => {
@@ -728,7 +731,7 @@ ws.onmessage = (evt) => {
   if (data.type === 'joined') {
     seat = data.seat ?? null;
     if (seat === null) {
-      setStatus(`Chế độ xem - ${data.name}. Bấm + để ngồi vào bàn.`);
+      setStatus(`Chế độ xem - ${data.name}. Bấm Tham gia để ngồi vào bàn.`);
       log('Viewer mode');
     } else {
       setStatus(`Đã ngồi ghế ${seat}: ${data.name}`);
@@ -750,7 +753,7 @@ ws.onmessage = (evt) => {
     hand = data.you.cards;
     selected = new Set([...selected].filter((c) => hand.includes(c)));
     if (seat === null) {
-      setStatus(`Chế độ xem - ${data.you?.name || 'Guest'}. Bấm + để ngồi vào bàn.`);
+      setStatus(`Chế độ xem - ${data.you?.name || 'Guest'}. Bấm Tham gia để ngồi vào bàn.`);
     } else {
       setStatus(`Bạn đang ngồi ghế ${seat} (${data.you?.name || 'Player'})`);
     }

@@ -128,8 +128,8 @@ button:disabled {
 
 .seat-bottom {
   bottom: 10px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 14px;
+  transform: none;
 }
 
 .seat-left {
@@ -484,6 +484,19 @@ button:disabled {
   border-radius: 12px;
   background: rgba(3, 22, 30, 0.7);
   padding: 10px;
+}
+
+.join-seat-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.join-seat-bar input {
+  min-width: 180px;
+  max-width: min(360px, 60vw);
 }
 
 .card {
@@ -854,6 +867,18 @@ body.force-landscape .landscape-lock {
     overflow: hidden;
     padding: 4px 6px;
     border-radius: 10px;
+  }
+
+  .join-seat-bar {
+    margin-bottom: 4px;
+    gap: 6px;
+  }
+
+  .join-seat-bar input {
+    min-width: 120px;
+    max-width: 45vw;
+    font-size: 11px;
+    padding: 4px 6px;
   }
 
   .your-hand-area h2 {
