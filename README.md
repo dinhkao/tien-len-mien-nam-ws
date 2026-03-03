@@ -47,7 +47,9 @@ If you deploy frontend on Netlify, you still need a separate websocket backend h
 
 ## Gameplay implemented
 
-- 2 to 4 players in one room
+- Single shared table for all connected clients (spectators can watch live)
+- Click `+` on an empty seat to sit and play
+- 2 to 4 seated players per game
 - Auto-start when player 4 joins, or click **Start Game** with 2-3 players
 - 52-card deck distributed evenly in round-robin among current players
 - First turn must include `3S` (3 of Spades)

@@ -26,6 +26,7 @@ let latestGameState = null;
 const nameEl = document.getElementById('name');
 const joinBtn = document.getElementById('joinBtn');
 const startBtn = document.getElementById('startBtn');
+const leaveSeatBtn = document.getElementById('leaveSeatBtn');
 const playBtn = document.getElementById('playBtn');
 const passBtn = document.getElementById('passBtn');
 const handEl = document.getElementById('hand');
@@ -388,6 +389,7 @@ function updateActionButtons() {
 
   if (!game) {
     startBtn.disabled = true;
+    leaveSeatBtn.disabled = true;
     playBtn.disabled = true;
     passBtn.disabled = true;
     return;
@@ -396,8 +398,10 @@ function updateActionButtons() {
   const yourTurn = game.currentTurn === seat;
   const canPlayTurn = joined && game.started && !game.ended && yourTurn;
   const canPass = canPlayTurn && !!game.trickCombo && game.lastPlaySeat !== seat;
+  const canLeaveSeat = joined && (!game.started || game.ended);
 
   startBtn.disabled = !joined || !game.canStart;
+  leaveSeatBtn.disabled = !canLeaveSeat;
   playBtn.disabled = !canPlayTurn || !isSelectedPlayable(game);
   passBtn.disabled = !canPass;
 }
@@ -519,15 +523,20 @@ function renderSeats(gameState) {
   };
   const positions = ['bottom', 'right', 'top', 'left'];
   const playersBySeat = new Map(gameState.players.map((p) => [p.seat, p]));
-  const baseOrder = Array.isArray(gameState.seatOrder) ? gameState.seatOrder : gameState.players.map((p) => p.seat);
+  const baseOrder =
+    Array.isArray(gameState.seatOrder) && gameState.seatOrder.length === 4
+      ? gameState.seatOrder
+      : [0, 1, 2, 3];
   const order = seat !== null ? rotateToSeat(baseOrder, seat) : baseOrder;
+  const canSitNow = !gameState.started || gameState.ended;
 
   Object.values(slotEls).forEach((el) => {
-    el.innerHTML = '<div class="empty-seat">Đang chờ người chơi...</div>';
+    el.innerHTML = '';
   });
 
   for (let i = 0; i < order.length && i < 4; i++) {
-    const player = playersBySeat.get(order[i]);
+    const absoluteSeat = order[i];
+    const player = playersBySeat.get(absoluteSeat);
     if (!player) continue;
     const pos = positions[i];
     const slot = slotEls[pos];
@@ -547,6 +556,31 @@ function renderSeats(gameState) {
       </div>
     `;
   }
+
+  for (let i = 0; i < order.length && i < 4; i++) {
+    const absoluteSeat = order[i];
+    if (playersBySeat.has(absoluteSeat)) continue;
+    const pos = positions[i];
+    const slot = slotEls[pos];
+    const canTakeThisSeat = canSitNow;
+
+    slot.innerHTML = `
+      <div class=\"empty-seat\">
+        <span>Ghế ${absoluteSeat}</span>
+        <button class=\"seat-plus\" data-seat=\"${absoluteSeat}\" ${canTakeThisSeat ? '' : 'disabled'}>+</button>
+      </div>
+    `;
+  }
+
+  document.querySelectorAll('.seat-plus').forEach((btn) => {
+    btn.onclick = () => {
+      if (!latestGameState || (latestGameState.started && !latestGameState.ended)) return;
+      const targetSeat = Number(btn.getAttribute('data-seat'));
+      if (!Number.isInteger(targetSeat)) return;
+      void tryLockLandscape();
+      ws.send(JSON.stringify({ type: 'sit', seat: targetSeat }));
+    };
+  });
 }
 
 function renderCenter(gameState) {
@@ -582,6 +616,11 @@ startBtn.onclick = () => {
   ws.send(JSON.stringify({ type: 'start' }));
 };
 
+leaveSeatBtn.onclick = () => {
+  void tryLockLandscape();
+  ws.send(JSON.stringify({ type: 'leave_seat' }));
+};
+
 playBtn.onclick = () => {
   void tryLockLandscape();
   const cards = [...selected];
@@ -607,9 +646,14 @@ ws.onmessage = (evt) => {
     log(data.message);
   }
   if (data.type === 'joined') {
-    seat = data.seat;
-    statusEl.textContent = `Đã vào bàn: ${data.name} (ghế ${seat})`;
-    log('Joined room');
+    seat = data.seat ?? null;
+    if (seat === null) {
+      statusEl.textContent = `Chế độ xem - ${data.name}. Bấm + để ngồi vào bàn.`;
+      log('Viewer mode');
+    } else {
+      statusEl.textContent = `Đã ngồi ghế ${seat}: ${data.name}`;
+      log(`Sat at seat ${seat}`);
+    }
     updateActionButtons();
   }
   if (data.type === 'player_joined') log(`${data.name} joined (seat ${data.seat})`);
@@ -622,8 +666,14 @@ ws.onmessage = (evt) => {
   if (data.type === 'state') {
     processStateSounds(latestGameState, data.game);
     latestGameState = data.game;
+    seat = data.you?.seat ?? null;
     hand = data.you.cards;
     selected = new Set([...selected].filter((c) => hand.includes(c)));
+    if (seat === null) {
+      statusEl.textContent = `Chế độ xem - ${data.you?.name || 'Guest'}. Bấm + để ngồi vào bàn.`;
+    } else {
+      statusEl.textContent = `Bạn đang ngồi ghế ${seat} (${data.you?.name || 'Player'})`;
+    }
     renderHand();
     renderSeats(latestGameState);
     renderCenter(latestGameState);

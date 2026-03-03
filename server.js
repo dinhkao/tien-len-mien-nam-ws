@@ -170,7 +170,6 @@ function comboBeats(next, current) {
   const nextIsThreePairStraight = nextIsPairStraight && next.chainLength === 3;
   const nextIsFourPlusPairStraight = nextIsPairStraight && next.chainLength >= 4;
 
-  // Bomb interactions for common Tien Len Mien Nam rules.
   if (isSingleTwo) {
     if (next.type === 'quad') return true;
     if (nextIsPairStraight && next.chainLength >= 3) return true;
@@ -208,32 +207,44 @@ function comboBeats(next, current) {
   return next.highRankValue > current.highRankValue;
 }
 
-function createGame() {
-  return {
-    players: [],
-    started: false,
-    ended: false,
-    currentTurn: 0,
-    trickCombo: null,
-    trickHistory: [],
-    passCount: 0,
-    lastPlaySeat: null,
-    winnerSeat: null,
-  };
+const room = {
+  clients: new Map(),
+  started: false,
+  ended: false,
+  currentTurn: 0,
+  trickCombo: null,
+  trickHistory: [],
+  passCount: 0,
+  lastPlaySeat: null,
+  winnerSeat: null,
+};
+
+let nextClientId = 1;
+
+function allClients() {
+  return [...room.clients.values()];
 }
 
-const game = createGame();
+function seatedClients() {
+  return allClients()
+    .filter((c) => c.seat !== null)
+    .sort((a, b) => a.seat - b.seat);
+}
+
+function getClient(ws) {
+  return room.clients.get(ws) || null;
+}
+
+function getClientBySeat(seat) {
+  return seatedClients().find((c) => c.seat === seat) || null;
+}
 
 function seatOrder() {
-  return activePlayersSorted().map((p) => p.seat);
-}
-
-function activePlayersSorted() {
-  return [...game.players].sort((a, b) => a.seat - b.seat);
+  return [...Array(MAX_PLAYERS).keys()];
 }
 
 function nextActiveSeat(currentSeat) {
-  const players = activePlayersSorted();
+  const players = seatedClients();
   if (players.length === 0) return null;
   const idx = players.findIndex((p) => p.seat === currentSeat);
   if (idx === -1) return players[0].seat;
@@ -241,106 +252,113 @@ function nextActiveSeat(currentSeat) {
 }
 
 function canStartGame() {
-  return game.players.length >= MIN_PLAYERS && game.players.length <= MAX_PLAYERS && (!game.started || game.ended);
-}
-
-function getPlayerBySocket(ws) {
-  return game.players.find((p) => p.ws === ws) || null;
-}
-
-function getPlayerBySeat(seat) {
-  return game.players.find((p) => p.seat === seat) || null;
-}
-
-function broadcast(payload) {
-  const raw = JSON.stringify(payload);
-  for (const p of game.players) {
-    if (p.ws.readyState === p.ws.OPEN) p.ws.send(raw);
-  }
+  const count = seatedClients().length;
+  return count >= MIN_PLAYERS && count <= MAX_PLAYERS && (!room.started || room.ended);
 }
 
 function sendTo(ws, payload) {
   if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(payload));
 }
 
+function broadcast(payload) {
+  const raw = JSON.stringify(payload);
+  for (const c of allClients()) {
+    if (c.ws.readyState === c.ws.OPEN) c.ws.send(raw);
+  }
+}
+
 function publicState(forSeat) {
+  const players = seatedClients();
   return {
-    started: game.started,
-    ended: game.ended,
+    started: room.started,
+    ended: room.ended,
     minPlayers: MIN_PLAYERS,
     maxPlayers: MAX_PLAYERS,
     canStart: canStartGame(),
-    currentTurn: game.currentTurn,
-    trickCombo: game.trickCombo
+    currentTurn: room.currentTurn,
+    trickCombo: room.trickCombo
       ? {
-          type: game.trickCombo.type,
-          size: game.trickCombo.size,
-          cards: game.trickCombo.cards.map((c) => c.id),
+          type: room.trickCombo.type,
+          size: room.trickCombo.size,
+          cards: room.trickCombo.cards.map((c) => c.id),
         }
       : null,
-    trickHistory: game.trickHistory.slice(-20),
-    passCount: game.passCount,
-    lastPlaySeat: game.lastPlaySeat,
-    winnerSeat: game.winnerSeat,
-    players: [...game.players]
-      .sort((a, b) => a.seat - b.seat)
-      .map((p) => ({
-        seat: p.seat,
-        name: p.name,
-        connected: p.ws.readyState === p.ws.OPEN,
-        cardsCount: p.cards.length,
-        isYou: p.seat === forSeat,
-      })),
+    trickHistory: room.trickHistory.slice(-20),
+    passCount: room.passCount,
+    lastPlaySeat: room.lastPlaySeat,
+    winnerSeat: room.winnerSeat,
+    players: players.map((p) => ({
+      seat: p.seat,
+      name: p.name,
+      connected: p.ws.readyState === p.ws.OPEN,
+      cardsCount: p.cards.length,
+      isYou: p.seat === forSeat,
+    })),
     seatOrder: seatOrder(),
+    viewerCount: Math.max(0, allClients().length - players.length),
   };
 }
 
 function sendState() {
-  for (const p of game.players) {
-    sendTo(p.ws, {
+  for (const c of allClients()) {
+    sendTo(c.ws, {
       type: 'state',
       you: {
-        seat: p.seat,
-        name: p.name,
-        cards: sortCards(p.cards).map((c) => c.id),
+        seat: c.seat,
+        name: c.name,
+        cards: c.seat !== null ? sortCards(c.cards).map((card) => card.id) : [],
       },
-      game: publicState(p.seat),
+      game: publicState(c.seat),
     });
   }
 }
 
 function resetRoundFrom(seat) {
-  game.trickCombo = null;
-  game.passCount = 0;
-  game.lastPlaySeat = null;
-  game.currentTurn = seat;
+  room.trickCombo = null;
+  room.passCount = 0;
+  room.lastPlaySeat = null;
+  room.currentTurn = seat;
   broadcast({ type: 'round_reset', nextTurn: seat });
+}
+
+function resetGame(reason) {
+  room.started = false;
+  room.ended = false;
+  room.currentTurn = 0;
+  room.trickCombo = null;
+  room.trickHistory = [];
+  room.passCount = 0;
+  room.lastPlaySeat = null;
+  room.winnerSeat = null;
+  for (const c of allClients()) c.cards = [];
+
+  if (reason) broadcast({ type: 'info', message: reason });
+  sendState();
 }
 
 function startGame() {
   if (!canStartGame()) return;
 
+  const players = seatedClients();
   const deck = shuffle(createDeck());
-  const players = activePlayersSorted();
-  for (const p of players) p.cards = [];
 
+  for (const c of allClients()) c.cards = [];
   for (let i = 0; i < deck.length; i++) {
     players[i % players.length].cards.push(deck[i]);
   }
 
-  game.started = true;
-  game.ended = false;
-  game.trickCombo = null;
-  game.trickHistory = [];
-  game.passCount = 0;
-  game.lastPlaySeat = null;
-  game.winnerSeat = null;
+  room.started = true;
+  room.ended = false;
+  room.trickCombo = null;
+  room.trickHistory = [];
+  room.passCount = 0;
+  room.lastPlaySeat = null;
+  room.winnerSeat = null;
 
-  // First turn: player with 3S.
   const first = players.find((p) => p.cards.some((c) => c.id === '3S'));
-  game.currentTurn = first ? first.seat : players[0].seat;
+  room.currentTurn = first ? first.seat : players[0].seat;
 
-  broadcast({ type: 'game_started', firstTurn: game.currentTurn, playerCount: players.length });
+  broadcast({ type: 'game_started', firstTurn: room.currentTurn, playerCount: players.length });
   sendState();
 }
 
@@ -358,7 +376,6 @@ function validateOwnership(player, cardIds) {
     picked.push(c);
   }
 
-  // Duplicate IDs from client are invalid.
   if (new Set(cardIds).size !== cardIds.length) {
     return { ok: false, cards: [] };
   }
@@ -366,160 +383,183 @@ function validateOwnership(player, cardIds) {
   return { ok: true, cards: picked };
 }
 
-function handlePlay(player, data) {
-  if (!game.started || game.ended) {
-    return sendTo(player.ws, { type: 'error', message: 'Game is not active.' });
-  }
-  if (player.seat !== game.currentTurn) {
-    return sendTo(player.ws, { type: 'error', message: 'Not your turn.' });
-  }
-  if (!Array.isArray(data.cards) || data.cards.length === 0) {
-    return sendTo(player.ws, { type: 'error', message: 'cards must be a non-empty array.' });
+function handleSetName(client, data) {
+  const name = String(data?.name || '').trim();
+  if (name) client.name = name.slice(0, 24);
+  sendTo(client.ws, { type: 'joined', seat: client.seat, name: client.name });
+  sendState();
+}
+
+function handleSit(client, data) {
+  if (room.started && !room.ended) {
+    return sendTo(client.ws, { type: 'error', message: 'Cannot sit while game is in progress.' });
   }
 
-  const own = validateOwnership(player, data.cards);
+  const seat = Number(data?.seat);
+  if (!Number.isInteger(seat) || seat < 0 || seat >= MAX_PLAYERS) {
+    return sendTo(client.ws, { type: 'error', message: 'Invalid seat.' });
+  }
+
+  const occupied = getClientBySeat(seat);
+  if (occupied && occupied !== client) {
+    return sendTo(client.ws, { type: 'error', message: 'Seat is already taken.' });
+  }
+
+  const prevSeat = client.seat;
+  client.seat = seat;
+  client.cards = [];
+
+  sendTo(client.ws, { type: 'joined', seat: client.seat, name: client.name });
+  if (prevSeat !== seat) {
+    broadcast({ type: 'player_joined', seat: client.seat, name: client.name });
+  }
+
+  if (seatedClients().length === MAX_PLAYERS && !room.started) startGame();
+  else sendState();
+}
+
+function handleLeaveSeat(client) {
+  if (client.seat === null) return;
+  if (room.started && !room.ended) {
+    return sendTo(client.ws, { type: 'error', message: 'Cannot leave seat while game is in progress.' });
+  }
+
+  const oldSeat = client.seat;
+  client.seat = null;
+  client.cards = [];
+
+  broadcast({ type: 'player_left', seat: oldSeat, name: client.name });
+  sendTo(client.ws, { type: 'joined', seat: null, name: client.name });
+  sendState();
+}
+
+function handlePlay(client, data) {
+  if (client.seat === null) {
+    return sendTo(client.ws, { type: 'error', message: 'Sit on a seat before playing.' });
+  }
+  if (!room.started || room.ended) {
+    return sendTo(client.ws, { type: 'error', message: 'Game is not active.' });
+  }
+  if (client.seat !== room.currentTurn) {
+    return sendTo(client.ws, { type: 'error', message: 'Not your turn.' });
+  }
+  if (!Array.isArray(data.cards) || data.cards.length === 0) {
+    return sendTo(client.ws, { type: 'error', message: 'cards must be a non-empty array.' });
+  }
+
+  const own = validateOwnership(client, data.cards);
   if (!own.ok) {
-    return sendTo(player.ws, { type: 'error', message: 'Invalid cards selection.' });
+    return sendTo(client.ws, { type: 'error', message: 'Invalid cards selection.' });
   }
 
   const combo = getCombo(own.cards);
   if (!combo) {
-    return sendTo(player.ws, { type: 'error', message: 'Invalid combination.' });
+    return sendTo(client.ws, { type: 'error', message: 'Invalid combination.' });
   }
 
-  const isOpeningPlay = game.trickCombo === null && game.trickHistory.length === 0;
+  const isOpeningPlay = room.trickCombo === null && room.trickHistory.length === 0;
   if (isOpeningPlay) {
     const has3S = own.cards.some((c) => c.id === '3S');
     if (!has3S) {
-      return sendTo(player.ws, { type: 'error', message: 'First play must include 3S.' });
+      return sendTo(client.ws, { type: 'error', message: 'First play must include 3S.' });
     }
   }
 
-  if (!comboBeats(combo, game.trickCombo)) {
-    return sendTo(player.ws, { type: 'error', message: 'Your play does not beat current combo.' });
+  if (!comboBeats(combo, room.trickCombo)) {
+    return sendTo(client.ws, { type: 'error', message: 'Your play does not beat current combo.' });
   }
 
-  player.cards = removePlayedCards(player.cards, own.cards);
+  client.cards = removePlayedCards(client.cards, own.cards);
 
-  game.trickCombo = combo;
-  game.lastPlaySeat = player.seat;
-  game.passCount = 0;
-  game.trickHistory.push({
+  room.trickCombo = combo;
+  room.lastPlaySeat = client.seat;
+  room.passCount = 0;
+  room.trickHistory.push({
     action: 'play',
-    seat: player.seat,
-    name: player.name,
+    seat: client.seat,
+    name: client.name,
     comboType: combo.type,
     cards: combo.cards.map((c) => c.id),
     pretty: cardsToPretty(combo.cards),
     at: Date.now(),
   });
 
-  if (player.cards.length === 0) {
-    game.ended = true;
-    game.winnerSeat = player.seat;
-    broadcast({ type: 'game_ended', winnerSeat: player.seat, winnerName: player.name });
+  if (client.cards.length === 0) {
+    room.ended = true;
+    room.winnerSeat = client.seat;
+    broadcast({ type: 'game_ended', winnerSeat: client.seat, winnerName: client.name });
     return sendState();
   }
 
-  game.currentTurn = nextActiveSeat(player.seat);
+  room.currentTurn = nextActiveSeat(client.seat);
   sendState();
 }
 
-function handlePass(player) {
-  if (!game.started || game.ended) {
-    return sendTo(player.ws, { type: 'error', message: 'Game is not active.' });
+function handlePass(client) {
+  if (client.seat === null) {
+    return sendTo(client.ws, { type: 'error', message: 'Sit on a seat before passing.' });
   }
-  if (player.seat !== game.currentTurn) {
-    return sendTo(player.ws, { type: 'error', message: 'Not your turn.' });
+  if (!room.started || room.ended) {
+    return sendTo(client.ws, { type: 'error', message: 'Game is not active.' });
   }
-  if (!game.trickCombo) {
-    return sendTo(player.ws, { type: 'error', message: 'Cannot pass on an empty trick.' });
+  if (client.seat !== room.currentTurn) {
+    return sendTo(client.ws, { type: 'error', message: 'Not your turn.' });
   }
-  if (game.lastPlaySeat === player.seat) {
-    return sendTo(player.ws, { type: 'error', message: 'Last player who played cannot pass.' });
+  if (!room.trickCombo) {
+    return sendTo(client.ws, { type: 'error', message: 'Cannot pass on an empty trick.' });
+  }
+  if (room.lastPlaySeat === client.seat) {
+    return sendTo(client.ws, { type: 'error', message: 'Last player who played cannot pass.' });
   }
 
-  game.passCount += 1;
-  game.trickHistory.push({
+  room.passCount += 1;
+  room.trickHistory.push({
     action: 'pass',
-    seat: player.seat,
-    name: player.name,
+    seat: client.seat,
+    name: client.name,
     at: Date.now(),
   });
 
-  game.currentTurn = nextActiveSeat(player.seat);
+  room.currentTurn = nextActiveSeat(client.seat);
 
-  // When all other active players pass after the last valid play, that player leads next round.
-  if (game.passCount >= game.players.length - 1 && game.lastPlaySeat !== null) {
-    const next = game.lastPlaySeat;
-    resetRoundFrom(next);
+  const activeCount = seatedClients().length;
+  if (room.passCount >= activeCount - 1 && room.lastPlaySeat !== null) {
+    resetRoundFrom(room.lastPlaySeat);
   }
 
   sendState();
 }
 
-function handleStart(player) {
-  if (game.started && !game.ended) {
-    return sendTo(player.ws, { type: 'error', message: 'Game is already in progress.' });
+function handleStart(client) {
+  if (client.seat === null) {
+    return sendTo(client.ws, { type: 'error', message: 'Sit on a seat before starting.' });
   }
-  if (game.players.length < MIN_PLAYERS) {
-    return sendTo(player.ws, { type: 'error', message: `Need at least ${MIN_PLAYERS} players to start.` });
+  if (room.started && !room.ended) {
+    return sendTo(client.ws, { type: 'error', message: 'Game is already in progress.' });
+  }
+  if (seatedClients().length < MIN_PLAYERS) {
+    return sendTo(client.ws, { type: 'error', message: `Need at least ${MIN_PLAYERS} players to start.` });
   }
   startGame();
 }
 
-function attachPlayer(ws, name) {
-  if (game.started && !game.ended) {
-    sendTo(ws, { type: 'error', message: 'Game is in progress. Wait for next round.' });
-    ws.close();
-    return;
+function handleDisconnect(ws) {
+  const client = getClient(ws);
+  if (!client) return;
+
+  const hadSeat = client.seat !== null;
+  const oldSeat = client.seat;
+  const oldName = client.name;
+  room.clients.delete(ws);
+
+  if (hadSeat) {
+    broadcast({ type: 'player_left', seat: oldSeat, name: oldName });
+    if (room.started && !room.ended) {
+      return resetGame('Game reset because a seated player disconnected.');
+    }
   }
-  if (game.players.length >= MAX_PLAYERS) {
-    sendTo(ws, { type: 'error', message: 'Room is full.' });
-    ws.close();
-    return;
-  }
 
-  const seat = [...Array(MAX_PLAYERS).keys()].find((s) => !game.players.some((p) => p.seat === s));
-  const player = {
-    ws,
-    seat,
-    name: String(name || `Player ${seat + 1}`).slice(0, 24),
-    cards: [],
-  };
-
-  game.players.push(player);
-  sendTo(ws, { type: 'joined', seat, name: player.name });
-  broadcast({ type: 'player_joined', seat, name: player.name });
-
-  if (game.players.length === MAX_PLAYERS && !game.started) {
-    startGame();
-  } else {
-    sendState();
-  }
-}
-
-function removePlayer(ws) {
-  const player = getPlayerBySocket(ws);
-  if (!player) return;
-
-  game.players = game.players.filter((p) => p.ws !== ws);
-  broadcast({ type: 'player_left', seat: player.seat, name: player.name });
-
-  // Reset game if someone disconnects.
-  game.started = false;
-  game.ended = false;
-  game.trickCombo = null;
-  game.trickHistory = [];
-  game.passCount = 0;
-  game.lastPlaySeat = null;
-  game.winnerSeat = null;
-  game.currentTurn = 0;
-
-  if (game.players.length > 0) {
-    broadcast({ type: 'info', message: 'Game reset because a player disconnected.' });
-    sendState();
-  }
+  sendState();
 }
 
 const server = http.createServer((req, res) => {
@@ -568,10 +608,23 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocketServer({ server });
 
 wss.on('connection', (ws) => {
+  const client = {
+    id: nextClientId,
+    ws,
+    name: `Guest ${nextClientId}`,
+    seat: null,
+    cards: [],
+  };
+  nextClientId += 1;
+  room.clients.set(ws, client);
+
   sendTo(ws, {
     type: 'welcome',
-    message: 'Send {"type":"join","name":"Your name"} to join. Then send {"type":"start"} when 2-4 players are ready.',
+    message:
+      'Everyone can watch. Send {"type":"join","name":"Your name"} to set name, then {"type":"sit","seat":0..3} to take a seat.',
   });
+  sendTo(ws, { type: 'joined', seat: client.seat, name: client.name });
+  sendState();
 
   ws.on('message', (raw) => {
     let data;
@@ -581,29 +634,22 @@ wss.on('connection', (ws) => {
       return sendTo(ws, { type: 'error', message: 'Invalid JSON.' });
     }
 
+    const c = getClient(ws);
+    if (!c) return;
+
     const t = data.type;
-    if (t === 'join') {
-      const existing = getPlayerBySocket(ws);
-      if (existing) {
-        return sendTo(ws, { type: 'error', message: 'Already joined.' });
-      }
-      return attachPlayer(ws, data.name);
-    }
-
-    const player = getPlayerBySocket(ws);
-    if (!player) {
-      return sendTo(ws, { type: 'error', message: 'Join first.' });
-    }
-
-    if (t === 'play') return handlePlay(player, data);
-    if (t === 'pass') return handlePass(player);
-    if (t === 'start') return handleStart(player);
+    if (t === 'join' || t === 'set_name') return handleSetName(c, data);
+    if (t === 'sit') return handleSit(c, data);
+    if (t === 'leave_seat') return handleLeaveSeat(c);
+    if (t === 'play') return handlePlay(c, data);
+    if (t === 'pass') return handlePass(c);
+    if (t === 'start') return handleStart(c);
 
     return sendTo(ws, { type: 'error', message: `Unknown type: ${t}` });
   });
 
-  ws.on('close', () => removePlayer(ws));
-  ws.on('error', () => removePlayer(ws));
+  ws.on('close', () => handleDisconnect(ws));
+  ws.on('error', () => handleDisconnect(ws));
 });
 
 server.listen(PORT, () => {
